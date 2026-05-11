@@ -231,7 +231,7 @@ export default function DashboardClient({ initialExams }: { initialExams: Exam[]
                    
                    <div className="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between">
                      <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold"><Clock className="h-3 w-3"/> {exam.duration || '45 Phút'}</div>
-                     <Link href={`/exams/${exam.filename}`} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-black flex items-center gap-1 shadow-md shadow-indigo-900/20 hover:bg-indigo-500 transform active:scale-95 transition-all cursor-pointer">
+                     <Link href={`/exams/${exam.filename.replace(/\.html$/i, '')}`} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-black flex items-center gap-1 shadow-md shadow-indigo-900/20 hover:bg-indigo-500 transform active:scale-95 transition-all cursor-pointer">
                        Vào thi <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
                      </Link>
                    </div>

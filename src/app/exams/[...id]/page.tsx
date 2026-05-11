@@ -5,13 +5,12 @@ import ExamViewerClient from "@/components/ExamViewerClient";
 export async function generateStaticParams() {
   const exams = await getExams();
   return exams.map((exam) => ({
-    id: exam.filename.split('/').map(segment => encodeURIComponent(segment)), 
+    id: exam.filename.replace(/\.html$/i, '').split('/'), 
   }));
 }
 
 export default async function ExamPage({ params }: { params: Promise<{ id: string[] }> }) {
   const resolvedParams = await params;
-  // Decode each segment back to normal string and reassemble path
-  const fullId = resolvedParams.id.map(segment => decodeURIComponent(segment)).join('/'); 
+  const fullId = resolvedParams.id.join('/'); 
   return <ExamViewerClient examId={fullId} />;
 }

@@ -116,7 +116,7 @@ export default function ExamViewerClient({ examId }: { examId: string }) {
 
   // URL encode each segment independently to ensure browser maps space/% correctly
   const encodedExamId = examId.split('/').map(encodeURIComponent).join('/');
-  const resolvedSrc = `${basePath}/assets/exams/${encodedExamId}`;
+  const resolvedSrc = `${basePath}/assets/exams/${encodedExamId}.html`;
 
   return (
     <div className="fixed inset-0 flex flex-col bg-[#0B0F17] overflow-hidden z-50 h-screen">
