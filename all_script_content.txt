@@ -1,0 +1,225 @@
+
+window.ANSWERS_DATA = [{"id": "1", "type": "mcq", "score": 0.25, "correct": 1}, {"id": "2", "type": "mcq", "score": 0.25, "correct": 1}, {"id": "3", "type": "mcq", "score": 0.25, "correct": 3}, {"id": "4", "type": "mcq", "score": 0.25, "correct": 2}, {"id": "5", "type": "mcq", "score": 0.25, "correct": 0}, {"id": "6", "type": "mcq", "score": 0.25, "correct": 1}, {"id": "7", "type": "mcq", "score": 0.25, "correct": 0}, {"id": "8", "type": "mcq", "score": 0.25, "correct": 3}, {"id": "9", "type": "mcq", "score": 0.25, "correct": 3}, {"id": "10", "type": "mcq", "score": 0.25, "correct": 1}, {"id": "11", "type": "mcq", "score": 0.25, "correct": 0}, {"id": "12", "type": "mcq", "score": 0.25, "correct": 1}, {"id": "13", "type": "tf", "score": 1.0, "items": [{"correct": true}, {"correct": false}, {"correct": false}, {"correct": true}]}, {"id": "14", "type": "tf", "score": 1.0, "items": [{"correct": true}, {"correct": false}, {"correct": true}, {"correct": false}]}, {"id": "15", "type": "tf", "score": 1.0, "items": [{"correct": false}, {"correct": false}, {"correct": false}, {"correct": true}]}, {"id": "16", "type": "tf", "score": 1.0, "items": [{"correct": false}, {"correct": true}, {"correct": false}, {"correct": false}]}, {"id": "17", "type": "short", "score": 0.5, "answer": "1,41"}, {"id": "18", "type": "short", "score": 0.5, "answer": "64"}, {"id": "19", "type": "short", "score": 0.5, "answer": "43,9"}, {"id": "20", "type": "short", "score": 0.5, "answer": "0,17"}, {"id": "21", "type": "short", "score": 0.5, "answer": "0,31"}, {"id": "22", "type": "short", "score": 0.5, "answer": "15,3"}];
+window.EXAM_TIME_LIMIT = 90;
+window.MIN_SUBMIT_TIME = 16;
+
+// ---
+
+function each(sel, cb) {
+    var els = document.querySelectorAll(sel);
+    for (var i = 0; i < els.length; i++) cb(els[i], i);
+}
+function toggleBubble(el, group, single) {
+    if (window.examLocked) return;
+    if (single) {
+        var was = el.classList.contains('filled');
+        each('[data-group="' + group + '"]', function(b) { b.classList.remove('filled'); });
+        if (!was) el.classList.add('filled');
+    } else { el.classList.toggle('filled'); }
+}
+function toggleShortBubble(el, col) {
+    if (window.examLocked) return;
+    var was = el.classList.contains('filled');
+    each('[data-scol="' + col + '"]', function(b) { b.classList.remove('filled'); });
+    if (!was) el.classList.add('filled');
+}
+function readMCQ(qid) {
+    var r = document.querySelector('input[name="mcq_' + qid + '"]:checked');
+    if (r) return parseInt(r.value);
+    var chosen = -1;
+    each('[data-group="mcq_' + qid + '"]', function(b) {
+        if (b.classList.contains('filled')) chosen = parseInt(b.getAttribute('data-idx'));
+    });
+    return chosen;
+}
+function readTF(qid, n) {
+    var result = [];
+    for (var i = 0; i < n; i++) {
+        var cb = document.querySelector('input[name="tf_' + qid + '_' + i + '"]');
+        if (cb) { result.push(!!cb.checked); continue; }
+        var grp = 'tf_' + qid + '_' + i;
+        var filled = document.querySelector('[data-group="' + grp + '"].filled');
+        result.push(filled ? filled.getAttribute('data-val') === 'T' : null);
+    }
+    return result;
+}
+function readShort(qid) {
+    var inp = document.querySelector('input[name="short_' + qid + '"]');
+    if (inp) { var v = (inp.value || '').trim(); return v || null; }
+    return null;
+}
+var TF_SCORE_MAP = {0:0, 1:0.1, 2:0.25, 3:0.5, 4:1.0};
+function canSubmitNow() {
+    if (window.MIN_SUBMIT_TIME && window.MIN_SUBMIT_TIME > 0) {
+        var spent = examStartTime ? (new Date() - examStartTime) / 1000 : 0;
+        if (spent < window.MIN_SUBMIT_TIME * 60) return false;
+    }
+    return true;
+}
+function updateSubmitState() {
+    var btn = document.querySelector('.btn-submit');
+    if (!btn) return;
+    var ok = window.examStarted && !window.examLocked && canSubmitNow();
+    btn.disabled = !ok;
+    btn.style.opacity = ok ? '1' : '0.55';
+}
+function submitExam(force) {
+    force = !!force;
+    if (!window.examStarted) { alert("Nhấn 'Bắt đầu làm bài' trước."); return; }
+    if (!force && !canSubmitNow()) {
+        var spent = examStartTime ? (new Date() - examStartTime) / 1000 : 0;
+        var rem = Math.ceil((window.MIN_SUBMIT_TIME * 60 - spent) / 60);
+        alert("Cần chờ thêm " + rem + " phút nữa mới được nộp."); return;
+    }
+    if (window.timerInterval) clearInterval(window.timerInterval);
+    window.examLocked = true;
+    var bs = document.querySelector('.btn-submit'), br = document.querySelector('.btn-reset');
+    if (bs) { bs.disabled = true; bs.style.opacity = '0.5'; }
+    if (br) { br.disabled = true; br.style.opacity = '0.5'; }
+    var earned = 0, maxScore = 0;
+    var data = window.ANSWERS_DATA || [];
+    for (var k = 0; k < data.length; k++) {
+        var q = data[k], qid = q.id;
+        maxScore += q.type === 'tf' ? 1.0 : q.score;
+        var imgEl = document.getElementById('img_q_' + qid);
+        if (imgEl && imgEl.hasAttribute('data-sol-src')) {
+            var ss = imgEl.getAttribute('data-sol-src');
+            if (ss) {
+                // Lưu ảnh gốc để resetExam có thể khôi phục
+                if (!imgEl.hasAttribute('data-orig-src')) {
+                    imgEl.setAttribute('data-orig-src', imgEl.src);
+                }
+                imgEl.src = ss;
+            }
+        }
+        if (q.type === 'mcq') {
+            var chosen = readMCQ(qid);
+            each('[data-inline-mcq="' + qid + '"]', function(lbl) {
+                var idx = parseInt(lbl.getAttribute('data-idx'));
+                lbl.classList.remove('correct-mark','wrong-mark');
+                var inp = lbl.querySelector('input[type="radio"]');
+                if (idx === q.correct) lbl.classList.add('correct-mark');
+                else if (inp && inp.checked) lbl.classList.add('wrong-mark');
+            });
+            each('[data-group="mcq_' + qid + '"]', function(b) {
+                var idx = parseInt(b.getAttribute('data-idx'));
+                if (!b.getAttribute('data-orig')) b.setAttribute('data-orig', b.innerHTML);
+                b.innerHTML = b.getAttribute('data-orig');
+                b.classList.remove('correct-mark','wrong-mark');
+                if (idx === q.correct) { b.classList.add('correct-mark'); if (b.classList.contains('filled')) b.innerHTML = '✔'; }
+                else if (b.classList.contains('filled')) { b.classList.add('wrong-mark'); b.innerHTML = '✘'; }
+            });
+            if (chosen === q.correct && chosen !== -1) earned += q.score;
+        } else if (q.type === 'tf') {
+            var answers = readTF(qid, q.items.length), nc = 0;
+            for (var i = 0; i < q.items.length; i++) {
+                var item = q.items[i], ua = answers[i];
+                var cb = document.querySelector('input[name="tf_' + qid + '_' + i + '"]');
+                if (cb) {
+                    var wrap = cb.closest('.tf-inline-item');
+                    if (wrap) { wrap.classList.remove('correct-mark','wrong-mark');
+                        wrap.classList.add(!!cb.checked === !!item.correct ? 'correct-mark' : 'wrong-mark'); }
+                }
+                var grp = 'tf_' + qid + '_' + i;
+                ['T','F'].forEach(function(v) {
+                    var b = document.querySelector('[data-group="' + grp + '"][data-val="' + v + '"]');
+                    if (!b) return;
+                    if (!b.getAttribute('data-orig')) b.setAttribute('data-orig', b.innerHTML);
+                    b.innerHTML = b.getAttribute('data-orig');
+                    b.classList.remove('correct-mark','wrong-mark');
+                    var isOk = (item.correct === true && v === 'T') || (item.correct === false && v === 'F');
+                    if (isOk) { b.classList.add('correct-mark'); if (b.classList.contains('filled')) b.innerHTML = '✔'; }
+                    else if (b.classList.contains('filled')) { b.classList.add('wrong-mark'); b.innerHTML = '✘'; }
+                });
+                if (ua !== null && ua === item.correct) nc++;
+            }
+            earned += TF_SCORE_MAP[nc] || 0;
+        } else if (q.type === 'short') {
+            var val = readShort(qid);
+            var norm = function(s) { return s ? s.replace(',','.').trim() : ''; };
+            var ok = val && norm(String(val)) === norm(String(q.answer));
+            var inp2 = document.querySelector('input[name="short_' + qid + '"]');
+            if (inp2) { inp2.classList.remove('correct','wrong'); inp2.classList.add(ok ? 'correct' : 'wrong'); }
+            if (ok) earned += q.score;
+        }
+    }
+    document.getElementById('total-score').textContent = 'Điểm: ' + earned.toFixed(2) + ' / ' + maxScore.toFixed(2);
+}
+function resetExam() {
+    each('.bubble,.bubble-sm', function(b) { b.classList.remove('filled','correct-mark','wrong-mark'); });
+    document.getElementById('total-score').textContent = '';
+    each('input[type="radio"],input[type="checkbox"]', function(el) { el.checked = false; });
+    each('input[name^="short_"]', function(el) { el.value = ''; el.classList.remove('correct','wrong'); });
+    each('input[type="checkbox"][name^="tf_"]', function(el) {
+        var wrap = el.closest('.tf-inline-item');
+        if (wrap) wrap.classList.remove('correct-mark','wrong-mark');
+    });
+    // Khôi phục ảnh đề (xóa ảnh lời giải đã hiển thị)
+    var data = window.ANSWERS_DATA || [];
+    for (var k = 0; k < data.length; k++) {
+        var qid = data[k].id;
+        var imgEl = document.getElementById('img_q_' + qid);
+        if (imgEl && imgEl.hasAttribute('data-orig-src')) {
+            imgEl.src = imgEl.getAttribute('data-orig-src');
+        }
+    }
+    // Xóa mark trên inline options
+    each('.mcq-inline-option', function(lbl) { lbl.classList.remove('correct-mark','wrong-mark'); });
+    each('.tf-inline-item', function(lbl) { lbl.classList.remove('correct-mark','wrong-mark'); });
+    window.examLocked = false;
+    var bs = document.querySelector('.btn-submit'), br = document.querySelector('.btn-reset');
+    if (bs) { bs.disabled = false; bs.style.opacity = '1'; }
+    if (br) { br.disabled = false; br.style.opacity = '1'; }
+    updateSubmitState();
+}
+window.examLocked = false; window.examStarted = false; window.timerInterval = null;
+var timeRemaining = window.EXAM_TIME_LIMIT ? window.EXAM_TIME_LIMIT * 60 : 0;
+var examStartTime = null;
+function formatTime(s) { var m=Math.floor(s/60),ss=s%60; return (m<10?'0'+m:m)+':'+(ss<10?'0'+ss:ss); }
+function updateTimerDisplay() {
+    var el = document.getElementById('exam-timer-remaining');
+    if (!el) return;
+    el.textContent = formatTime(timeRemaining);
+    el.style.color = timeRemaining <= 60 ? '#dc3545' : '#1a3a6b';
+    updateSubmitState();
+}
+function startTimer() {
+    if (timeRemaining <= 0) return;
+    if (window.timerInterval) { clearInterval(window.timerInterval); window.timerInterval = null; }
+    updateTimerDisplay();
+    window.timerInterval = setInterval(function() {
+        timeRemaining--;
+        updateTimerDisplay();
+        if (timeRemaining <= 0) { clearInterval(window.timerInterval); window.timerInterval = null; window.examLocked = true; alert("Hết giờ!"); submitExam(true); }
+    }, 1000);
+}
+function beginExam() {
+    if (window.examStarted) return;
+    var ov = document.getElementById('start-overlay'), wr = document.getElementById('exam-wrapper');
+    if (ov) ov.style.display = 'none';
+    if (wr) wr.style.display = 'block';
+    window.examStarted = true; examStartTime = new Date();
+    updateTimerDisplay(); startTimer(); updateSubmitState();
+}
+window.onload = function() {
+    each('input[name^="short_"]', function(inp) {
+        inp.addEventListener('input', function() {
+            inp.value = (inp.value||'').replace(/[^0-9,\-]/g,'').slice(0,6);
+            updateSubmitState();
+        });
+    });
+    each('input[type="radio"][name^="mcq_"]', function(r) { r.addEventListener('change', updateSubmitState); });
+    var btnStart = document.querySelector('#start-overlay .btn-start');
+    if (btnStart) btnStart.addEventListener('click', function(e) { e.preventDefault(); beginExam(); });
+    if (window.EXAM_TIME_LIMIT && window.EXAM_TIME_LIMIT > 0) {
+        var wr = document.getElementById('exam-wrapper'), ov = document.getElementById('start-overlay');
+        if (wr) wr.style.display = 'none';
+        if (ov) ov.style.display = 'flex';
+    } else {
+        var wr2 = document.getElementById('exam-wrapper'), ov2 = document.getElementById('start-overlay');
+        if (wr2) wr2.style.display = 'block';
+        if (ov2) ov2.style.display = 'none';
+        window.examStarted = true; examStartTime = new Date(); updateSubmitState();
+    }
+};
+window.beginExam = beginExam; window.submitExam = submitExam; window.resetExam = resetExam;

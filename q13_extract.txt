@@ -1,0 +1,5 @@
+<div class="question" id="q_13">
+  <div class="q-header"><span class="q-num">Câu 13</span><span class="id-badge">1D2V3-6</span><span class="score-badge">1.00 đ</span></div>
+  <div class="q-img"><img id="img_q_13" src="BASE64_TRUNCATED" data-sol-src="BASE64_TRUNCATED" alt="Câu 13"></div>
+  
+<div class="q-interact inline-mode"><div class="tf-inline"><label class="tf-inline-item"><input type="checkbox" name="tf_13_0"> <span class="tf-letter">a)</span> Đúng</label><label class="tf-inline-item"><input type="checkbox" name="tf_13_1"> <span class="tf-letter">b)</span> Đúng</label><label class="tf-inline-item"><input type="checkbox" name="tf_13_2"> <span class="tf-letter">c)</span> Đúng</label><label class="tf-inline-item"><input type="checkbox" name="tf_13_3"> <span class="tf-letter">d)</span> Đúng</label></div>
