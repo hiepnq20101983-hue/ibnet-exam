@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: 'export',
   images: { unoptimized: true },
-  basePath: '', // Typically /repository-name if deploying to subpath, but empty for root.
+  basePath: process.env.NODE_ENV === 'production' ? '/ibnet-exam' : '', // Add repository name as basePath for production
 };
 
 export default nextConfig;
