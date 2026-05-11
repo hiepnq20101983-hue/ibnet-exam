@@ -11,6 +11,6 @@ export async function generateStaticParams() {
 
 export default async function ExamPage({ params }: { params: Promise<{ id: string[] }> }) {
   const resolvedParams = await params;
-  const fullId = resolvedParams.id.join('/'); 
+  const fullId = resolvedParams.id.map(segment => decodeURIComponent(segment)).join('/'); 
   return <ExamViewerClient examId={fullId} />;
 }
