@@ -29,6 +29,17 @@ export default function DashboardClient({ initialExams }: { initialExams: Exam[]
     return ['Tất cả', ...raw];
   }, [exams]);
 
+  const userMatchedClass = useMemo(() => {
+    if (!user || !user.className || classOptions.length <= 1) return null;
+    const studentClassStr = user.className.trim();
+    const numberMatch = studentClassStr.match(/\d+/);
+    if (numberMatch) {
+      const gradeNum = numberMatch[0];
+      return classOptions.find(opt => opt !== 'Tất cả' && opt.includes(gradeNum)) || null;
+    }
+    return classOptions.find(opt => opt !== 'Tất cả' && (opt.toLowerCase().includes(studentClassStr.toLowerCase()) || studentClassStr.toLowerCase().includes(opt.toLowerCase()))) || null;
+  }, [user, classOptions]);
+
   useEffect(() => {
     setIsMounted(true);
     const savedUser = localStorage.getItem('exam_user');
@@ -38,6 +49,35 @@ export default function DashboardClient({ initialExams }: { initialExams: Exam[]
     const savedHistory = localStorage.getItem('exam_history');
     if (savedHistory) setHistory(JSON.parse(savedHistory));
   }, []);
+
+  // Automatically filter content based on the student's registered class
+  useEffect(() => {
+    if (user && user.className && classOptions.length > 1 && activeClass === 'Tất cả') {
+      const studentClassStr = user.className.trim();
+      const numberMatch = studentClassStr.match(/\d+/);
+      
+      if (numberMatch) {
+        const gradeNumber = numberMatch[0]; // Extract "12" from "12A1"
+        // Look for a matching exam category (e.g., "Lớp 12" or "Khối 12")
+        const matchedCategory = classOptions.find(
+          opt => opt !== 'Tất cả' && opt.includes(gradeNumber)
+        );
+        if (matchedCategory) {
+          setActiveClass(matchedCategory);
+        }
+      } else {
+        // Handle textual matching (e.g., "Chung", "Tập sự")
+        const matchedCategory = classOptions.find(
+          opt => opt !== 'Tất cả' && 
+          (opt.toLowerCase().includes(studentClassStr.toLowerCase()) || 
+           studentClassStr.toLowerCase().includes(opt.toLowerCase()))
+        );
+        if (matchedCategory) {
+          setActiveClass(matchedCategory);
+        }
+      }
+    }
+  }, [user, classOptions, activeClass]);
 
   const stats = useMemo(() => {
     if (history.length === 0) return { avg: "0", trend: "0", total: 0, chartData: [] };
@@ -186,7 +226,12 @@ export default function DashboardClient({ initialExams }: { initialExams: Exam[]
                     {classOptions.map(c => (
                       <button key={c} onClick={() => setActiveClass(c)} 
                         className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-all flex items-center justify-between ${activeClass === c ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
-                         {c}
+                         <span className="flex items-center gap-1.5">
+                           {c}
+                           {userMatchedClass === c && (
+                             <span className={`text-[8px] px-1.5 py-0.5 rounded-md font-black tracking-wider uppercase border ${activeClass === c ? 'bg-indigo-700 border-indigo-500 text-indigo-100' : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'}`}>Lớp Bạn</span>
+                           )}
+                         </span>
                          {activeClass === c && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                       </button>
                     ))}
