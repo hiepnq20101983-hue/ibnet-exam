@@ -54,6 +54,38 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (data.action === 'add_students_batch') {
+      var rosterSheet = ss.getSheetByName("Students");
+      if (!rosterSheet) {
+        rosterSheet = ss.insertSheet("Students");
+        rosterSheet.appendRow(["Lớp", "Họ và Tên", "Lịch học", "Học phí", "Trạng thái đóng tiền"]);
+        rosterSheet.getRange("A1:E1").setFontWeight("bold").setBackground("#f3f4f6");
+      }
+      
+      var students = data.students || [];
+      var rowsToAdd = [];
+      
+      for (var i = 0; i < students.length; i++) {
+        if (!students[i].studentName) continue;
+        rowsToAdd.push([
+          students[i].className || "",
+          students[i].studentName,
+          students[i].schedule || "",
+          students[i].tuition || "",
+          students[i].tuitionStatus || "Chưa đóng"
+        ]);
+      }
+      
+      if (rowsToAdd.length > 0) {
+        var lastRow = rosterSheet.getLastRow();
+        var range = rosterSheet.getRange(lastRow + 1, 1, rowsToAdd.length, 5);
+        range.setValues(rowsToAdd);
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({result: "success", count: rowsToAdd.length}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (data.action === 'update_student') {
       var rosterSheet = ss.getSheetByName("Students");
       if (!rosterSheet) {

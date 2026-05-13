@@ -6,7 +6,8 @@ import {
   Users, School, Calendar, ArrowLeft, Lock, KeyRound, Loader2, 
   RefreshCw, Search, CheckCircle2, XCircle, GraduationCap, 
   BookOpen, Trophy, PieChart, ArrowRight, Download, Filter, AlertCircle,
-  Copy, Activity, Plus, Edit, X, UserPlus
+  Copy, Activity, Plus, Edit, X, UserPlus, CalendarRange, Upload, 
+  Settings, Trash2, ChevronLeft, ChevronRight, Check
 } from "lucide-react";
 import React, { useEffect, useState, useMemo } from 'react';
 import { ResponsiveContainer, Cell, PieChart as RechartsPieChart, Pie } from 'recharts';
@@ -44,8 +45,22 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [roster, setRoster] = useState<StudentRoster[]>([]);
   const [behavior, setBehavior] = useState<BehaviorLog[]>([]);
-  const [activeTab, setActiveTab] = useState<'exams' | 'roster'>('exams');
+  const [activeTab, setActiveTab] = useState<'exams' | 'roster' | 'schedule'>('exams');
   const [copiedStudent, setCopiedStudent] = useState<string | null>(null);
+  
+  // States cho Lịch học bận & Khung giờ cấu hình
+  const [timeSlots, setTimeSlots] = useState<string[]>(['7h-8h30', '9h-10h30', '13h-14h30', '15h-16h30']);
+  const [isEditingSlots, setIsEditingSlots] = useState(false);
+  const [newSlotVal, setNewSlotVal] = useState("");
+  
+  // Calendar states
+  const [calendarDate, setCalendarDate] = useState(new Date());
+  const [selectedCalDay, setSelectedCalDay] = useState<number | null>(new Date().getDate());
+
+  // CSV Import States
+  const [isImportingCsv, setIsImportingCsv] = useState(false);
+  const [csvParsedStudents, setCsvParsedStudents] = useState<StudentRoster[]>([]);
+  const [isSubmittingCsv, setIsSubmittingCsv] = useState(false);
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -344,6 +359,194 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
     ];
   }, [currentExamStats]);
 
+  // Sinh màu tương phản độc đáo cho từng lớp dạy (dark mode optimized)
+  const getClassColor = (className: string) => {
+    if (!className) return 'bg-slate-800 border-slate-700 text-slate-400';
+    const colors = [
+      'bg-indigo-600/20 border-indigo-500/40 text-indigo-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]',
+      'bg-emerald-600/20 border-emerald-500/40 text-emerald-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]',
+      'bg-amber-600/20 border-amber-500/40 text-amber-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]',
+      'bg-rose-600/20 border-rose-500/40 text-rose-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]',
+      'bg-purple-600/20 border-purple-500/40 text-purple-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]',
+      'bg-cyan-600/20 border-cyan-500/40 text-cyan-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]',
+      'bg-orange-600/20 border-orange-500/40 text-orange-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]',
+      'bg-pink-600/20 border-pink-500/40 text-pink-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]',
+    ];
+    let hash = 0;
+    for (let i = 0; i < className.length; i++) {
+      hash = className.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % colors.length;
+    return colors[index];
+  };
+
+  // Phân tích lịch học của toàn bộ danh sách học sinh thành ma trận lịch biểu tuần
+  const scheduleMap = useMemo(() => {
+    const map: Record<string, Record<string, string[]>> = {};
+    const weekDays = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
+    
+    weekDays.forEach(d => {
+      map[d] = {};
+      timeSlots.forEach(slot => {
+        map[d][slot] = [];
+      });
+    });
+    
+    roster.forEach(student => {
+      if (!student.schedule || !student.className) return;
+      const schedStr = student.schedule.toLowerCase();
+      
+      const matchedDays: string[] = [];
+      if (schedStr.includes('thứ 2') || schedStr.includes('t2')) matchedDays.push('Thứ 2');
+      if (schedStr.includes('thứ 3') || schedStr.includes('t3')) matchedDays.push('Thứ 3');
+      if (schedStr.includes('thứ 4') || schedStr.includes('t4')) matchedDays.push('Thứ 4');
+      if (schedStr.includes('thứ 5') || schedStr.includes('t5')) matchedDays.push('Thứ 5');
+      if (schedStr.includes('thứ 6') || schedStr.includes('t6')) matchedDays.push('Thứ 6');
+      if (schedStr.includes('thứ 7') || schedStr.includes('t7')) matchedDays.push('Thứ 7');
+      if (schedStr.includes('chủ nhật') || schedStr.includes('cn')) matchedDays.push('Chủ Nhật');
+      
+      const matchedSlots: string[] = [];
+      timeSlots.forEach(slot => {
+        const normSlot = slot.replace(/\s+/g, '').replace(':', 'h').toLowerCase(); 
+        const normSched = schedStr.replace(/\s+/g, '').replace(':', 'h').toLowerCase();
+        
+        if (normSched.includes(normSlot)) {
+          matchedSlots.push(slot);
+        }
+      });
+      
+      matchedDays.forEach(day => {
+        matchedSlots.forEach(slot => {
+          if (map[day] && map[day][slot] && !map[day][slot].includes(student.className)) {
+            map[day][slot].push(student.className);
+          }
+        });
+      });
+    });
+    
+    return map;
+  }, [roster, timeSlots]);
+
+  // Calendar utility helpers
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+  const getFirstDayOfMonth = (date: Date) => {
+    const d = new Date(date.getFullYear(), date.getMonth(), 1);
+    let day = d.getDay(); // 0 = CN, 1 = T2...
+    return day === 0 ? 6 : day - 1; // Đổi 0 thành Thứ 2, 6 thành Chủ Nhật
+  };
+  
+  const prevMonth = () => {
+    setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1));
+    setSelectedCalDay(null);
+  };
+  const nextMonth = () => {
+    setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1));
+    setSelectedCalDay(null);
+  };
+
+  // Trả về các slot bận của một ngày lịch nhất định dựa vào thứ tương ứng
+  const getClassesForCalendarDay = (dayNum: number) => {
+    const d = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), dayNum);
+    const dayOfWeek = d.getDay(); 
+    const dayNamesMap = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+    const dayStr = dayNamesMap[dayOfWeek];
+    
+    const dailyClasses: { slot: string, classes: string[] }[] = [];
+    timeSlots.forEach(slot => {
+      const clss = scheduleMap[dayStr]?.[slot] || [];
+      if (clss.length > 0) {
+        dailyClasses.push({ slot, classes: clss });
+      }
+    });
+    return { dayStr, dailyClasses };
+  };
+
+  // Xử lý upload file CSV
+  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      if (!text) return;
+      
+      const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+      if (lines.length < 2) {
+        alert("File CSV không hợp lệ hoặc trống.");
+        return;
+      }
+      
+      const headerLine = lines[0];
+      const delimiter = headerLine.includes(';') ? ';' : ',';
+      const headers = headerLine.split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, ''));
+      
+      let classIdx = headers.findIndex(h => h.toLowerCase().includes('lớp') || h.toLowerCase().includes('lop'));
+      let nameIdx = headers.findIndex(h => h.toLowerCase().includes('tên') || h.toLowerCase().includes('ten') || h.toLowerCase().includes('họ') || h.toLowerCase().includes('ho'));
+      let scheduleIdx = headers.findIndex(h => h.toLowerCase().includes('lịch') || h.toLowerCase().includes('lich'));
+      let tuitionIdx = headers.findIndex(h => h.toLowerCase().includes('phí') || h.toLowerCase().includes('phi'));
+      let statusIdx = headers.findIndex(h => h.toLowerCase().includes('trạng') || h.toLowerCase().includes('trang') || h.toLowerCase().includes('thái') || h.toLowerCase().includes('thai'));
+      
+      if (classIdx === -1) classIdx = 0;
+      if (nameIdx === -1) nameIdx = 1;
+      
+      const parsed: StudentRoster[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const matches = lines[i].match(/(".*?"|[^",\s;]+)(?=\s*[,;]|\s*$)/g) || lines[i].split(delimiter);
+        if (!matches) continue;
+        const values = matches.map(v => v.trim().replace(/^["']|["']$/g, ''));
+        
+        if (values.length > Math.max(classIdx, nameIdx) && values[nameIdx]) {
+          parsed.push({
+            className: values[classIdx] || (selectedClass !== "Tất cả" ? selectedClass : "Chưa rõ"),
+            studentName: values[nameIdx],
+            schedule: scheduleIdx !== -1 && values[scheduleIdx] ? values[scheduleIdx] : '',
+            tuition: tuitionIdx !== -1 && values[tuitionIdx] ? values[tuitionIdx] : '',
+            tuitionStatus: statusIdx !== -1 && values[statusIdx] ? values[statusIdx] : 'Chưa đóng',
+          });
+        }
+      }
+      
+      if (parsed.length === 0) {
+        alert("Không thể phân tích học sinh nào từ file CSV. Kiểm tra định dạng các cột: Lớp, Tên học sinh...");
+      } else {
+        setCsvParsedStudents(parsed);
+        setIsImportingCsv(true);
+      }
+    };
+    reader.readAsText(file, "UTF-8");
+    e.target.value = ''; 
+  };
+
+  // Gửi danh sách học sinh import hàng loạt lên API Google sheet
+  const handleSubmitCsvImport = async () => {
+    if (!sheetUrl || csvParsedStudents.length === 0) return;
+    setIsSubmittingCsv(true);
+    try {
+      await fetch(sheetUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add_students_batch',
+          students: csvParsedStudents
+        })
+      });
+      setIsImportingCsv(false);
+      setCsvParsedStudents([]);
+      alert(`Đã gửi lệnh thêm ${csvParsedStudents.length} học sinh lên Sheet! Chờ nạp lại...`);
+      setTimeout(() => {
+        fetchData();
+      }, 800);
+    } catch (err: any) {
+      alert("Lỗi import: " + err.message);
+    } finally {
+      setIsSubmittingCsv(false);
+    }
+  };
+
   // Roster is empty check
   const isRosterEmpty = roster.length === 0;
   if (!isAuthorized) {
@@ -566,10 +769,254 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
           >
             <Users className="h-4 w-4" /> Theo dõi Phụ huynh & Lịch học
           </button>
+          <button 
+            onClick={() => setActiveTab('schedule')} 
+            className={`px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'schedule' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'}`}
+          >
+            <CalendarRange className="h-4 w-4" /> Lịch dạy & Lịch bận
+          </button>
         </div>
 
         {/* Main Content */}
-        {activeTab === 'roster' ? (
+        {activeTab === 'schedule' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-300">
+            
+            {/* TIMETABLE (WEEKLY SCHEDULE) */}
+            <div className="lg:col-span-8 space-y-6">
+              <div className="bg-[#111827] border border-slate-800 rounded-3xl shadow-xl overflow-hidden">
+                <div className="px-6 py-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/50">
+                  <h2 className="text-lg font-bold flex items-center gap-2"><CalendarRange className="h-5 w-5 text-indigo-400"/> Thời khóa biểu & Lịch bận Tuần</h2>
+                  
+                  <button 
+                    onClick={() => setIsEditingSlots(!isEditingSlots)}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-all"
+                  >
+                    <Settings className="h-3.5 w-3.5"/> Tùy chỉnh Khung giờ
+                  </button>
+                </div>
+
+                {/* SLOT CONFIGURATOR PANEL */}
+                {isEditingSlots && (
+                  <div className="p-6 bg-slate-950/50 border-b border-slate-800/80 animate-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-xs font-black text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Settings className="h-4 w-4" /> Thiết lập khung giờ dạy
+                      </h4>
+                      <span className="text-[10px] text-slate-500 font-semibold italic">(Hệ thống sẽ tự động ánh xạ lịch của Học sinh có chứa chuỗi này)</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {timeSlots.map((slot, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5 bg-slate-800/60 border border-slate-700 px-3 py-1.5 rounded-xl text-sm font-black text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                          <span className="font-mono text-xs">{slot}</span>
+                          <button 
+                            onClick={() => setTimeSlots(timeSlots.filter((_, i) => i !== idx))}
+                            className="text-slate-500 hover:text-rose-400 ml-1 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-3 max-w-md">
+                      <input 
+                        type="text" 
+                        placeholder="Thêm khung giờ (ví dụ: 17h30-19h)" 
+                        value={newSlotVal}
+                        onChange={e => setNewSlotVal(e.target.value)}
+                        className="flex-1 bg-slate-950 border border-slate-800 text-white text-sm rounded-xl px-4 py-2.5 outline-none focus:ring-1 ring-indigo-500"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && newSlotVal.trim()) {
+                            if (!timeSlots.includes(newSlotVal.trim())) {
+                              setTimeSlots([...timeSlots, newSlotVal.trim()]);
+                              setNewSlotVal("");
+                            }
+                          }
+                        }}
+                      />
+                      <button 
+                        onClick={() => {
+                          if (newSlotVal.trim() && !timeSlots.includes(newSlotVal.trim())) {
+                            setTimeSlots([...timeSlots, newSlotVal.trim()]);
+                            setNewSlotVal("");
+                          }
+                        }}
+                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 text-white font-black text-xs rounded-xl transition-all flex items-center gap-1"
+                      >
+                        <Plus className="h-3.5 w-3.5"/> Thêm
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* TIMETABLE GRID */}
+                <div className="overflow-x-auto custom-scrollbar">
+                  <table className="w-full border-collapse table-fixed min-w-[850px]">
+                    <thead>
+                      <tr className="bg-slate-950 border-b border-slate-800">
+                        <th className="w-36 px-4 py-4 text-xs font-black text-slate-400 text-center uppercase tracking-wider border-r border-slate-800 bg-slate-950/80 sticky left-0 z-20">Khung giờ</th>
+                        {['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'].map(d => (
+                          <th key={d} className="px-2 py-4 text-xs font-black text-slate-200 text-center uppercase tracking-wider border-r last:border-r-0 border-slate-800">{d}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {timeSlots.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-20 text-center text-slate-500 italic text-sm">
+                            <AlertCircle className="h-10 w-10 text-slate-600 mx-auto mb-2" />
+                            Chưa có khung giờ nào được thiết lập. Nhấn "Tùy chỉnh" ở góc trên để tạo!
+                          </td>
+                        </tr>
+                      ) : (
+                        timeSlots.map(slot => (
+                          <tr key={slot} className="hover:bg-slate-800/10 transition-all group">
+                            <td className="px-4 py-6 text-xs font-black text-indigo-400 bg-slate-950/80 text-center font-mono border-r border-slate-800 sticky left-0 z-10 group-hover:text-indigo-300 shadow-lg backdrop-blur-md">
+                              {slot}
+                            </td>
+                            {['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'].map(day => {
+                              const classes = scheduleMap[day]?.[slot] || [];
+                              return (
+                                <td key={day} className="p-2.5 border-r last:border-r-0 border-slate-800 align-middle">
+                                  <div className="flex flex-col gap-1.5">
+                                    {classes.length > 0 ? (
+                                      classes.map(cls => (
+                                        <div 
+                                          key={cls} 
+                                          className={`px-2.5 py-2.5 rounded-xl border text-[10px] font-black text-center uppercase tracking-wider transition-all transform hover:scale-[1.03] hover:shadow-lg ${getClassColor(cls)}`}
+                                        >
+                                          Lớp {cls}
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <div className="text-[10px] text-slate-800 text-center font-semibold py-3 italic group-hover:text-slate-700/50 select-none transition-colors">- Trống -</div>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              
+              {/* Quick Note */}
+              <div className="bg-slate-900/30 border border-slate-800 p-5 rounded-3xl text-xs text-slate-400 leading-relaxed flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-indigo-400 shrink-0 mt-0.5" />
+                <div>
+                  <b className="text-slate-200 block mb-1">Hướng dẫn ánh xạ lịch tự động:</b>
+                  Khi điền thông tin học sinh ở sheet <b>"Students"</b> (hoặc form thêm mới), ô <b>"Lịch học"</b> chỉ cần có chứa thứ (ví dụ: <i>Thứ 2, T2...</i>) và từ khóa khung giờ tương ứng (ví dụ: <i>7h-8h30</i>). Hệ thống sẽ quét và xếp danh sách các lớp vào bảng bên trên, mỗi lớp sở hữu màu nền tương phản dễ quan sát riêng biệt!
+                </div>
+              </div>
+            </div>
+
+            {/* CALENDAR COMPONENT */}
+            <div className="lg:col-span-4 space-y-6">
+              {/* MONTHLY CALENDAR */}
+              <div className="bg-[#111827] border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col h-fit">
+                <div className="flex items-center justify-between mb-6 pb-3 border-b border-slate-800/50">
+                  <h3 className="text-sm font-black text-slate-300 uppercase tracking-wide flex items-center gap-2"><Calendar className="h-4 w-4 text-indigo-400"/> Lịch Theo Dõi</h3>
+                  <div className="flex items-center gap-2">
+                    <button onClick={prevMonth} className="p-1.5 bg-slate-800/60 hover:bg-slate-700 hover:text-white text-slate-400 border border-slate-700 rounded-xl transition-all">
+                      <ChevronLeft className="h-4 w-4"/>
+                    </button>
+                    <span className="text-xs font-black text-white font-mono min-w-[80px] text-center px-1 bg-slate-950 border border-slate-800 py-1 rounded-lg">
+                      {calendarDate.toLocaleString('vi-VN', { month: '2-digit', year: 'numeric' })}
+                    </span>
+                    <button onClick={nextMonth} className="p-1.5 bg-slate-800/60 hover:bg-slate-700 hover:text-white text-slate-400 border border-slate-700 rounded-xl transition-all">
+                      <ChevronRight className="h-4 w-4"/>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Calendar Days Headings */}
+                <div className="grid grid-cols-7 gap-1.5 mb-2">
+                  {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(d => (
+                    <div key={d} className="text-center text-[10px] font-black text-slate-500 uppercase py-1 tracking-wider">{d}</div>
+                  ))}
+                </div>
+
+                {/* Calendar Days Grid */}
+                <div className="grid grid-cols-7 gap-1.5">
+                  {/* Padding for empty first days of week */}
+                  {Array.from({ length: getFirstDayOfMonth(calendarDate) }).map((_, i) => (
+                    <div key={`empty-${i}`} className="aspect-square"></div>
+                  ))}
+                  
+                  {/* Month Days */}
+                  {Array.from({ length: getDaysInMonth(calendarDate) }).map((_, i) => {
+                    const dayNum = i + 1;
+                    const isToday = dayNum === new Date().getDate() && 
+                                    calendarDate.getMonth() === new Date().getMonth() && 
+                                    calendarDate.getFullYear() === new Date().getFullYear();
+                    const isSelected = selectedCalDay === dayNum;
+                    
+                    const { dailyClasses } = getClassesForCalendarDay(dayNum);
+                    const hasClasses = dailyClasses.length > 0;
+                    
+                    return (
+                      <button
+                        key={dayNum}
+                        onClick={() => setSelectedCalDay(dayNum)}
+                        className={`aspect-square flex flex-col items-center justify-center p-1 rounded-xl border transition-all relative ${
+                          isSelected 
+                            ? 'bg-indigo-600 border-indigo-500 text-white font-bold z-10 shadow-lg shadow-indigo-600/30 scale-[1.05]' 
+                            : isToday 
+                              ? 'bg-indigo-600/10 border-indigo-500/40 text-indigo-400 font-black' 
+                              : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-white hover:border-slate-700'
+                        }`}
+                      >
+                        <span className="text-xs font-bold font-mono">{dayNum}</span>
+                        {hasClasses && !isSelected && (
+                          <span className="absolute bottom-1.5 w-1 h-1 rounded-full bg-indigo-400 animate-pulse"></span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* DAY SCHEDULE VIEW DETAILED SIDEBAR */}
+              {selectedCalDay && (
+                <div className="bg-[#111827] border border-slate-800 rounded-3xl p-6 shadow-xl animate-in slide-in-from-bottom-3 duration-300">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+                    <h4 className="text-xs font-black text-indigo-400 uppercase tracking-wider">Lịch học chi tiết</h4>
+                    <span className="text-[10px] bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl font-black text-slate-300 font-mono">
+                      {selectedCalDay}/{calendarDate.getMonth()+1} ({getClassesForCalendarDay(selectedCalDay).dayStr})
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {getClassesForCalendarDay(selectedCalDay).dailyClasses.length === 0 ? (
+                      <div className="text-center py-10 text-slate-600 text-xs font-medium italic flex flex-col items-center gap-2 bg-slate-950/20 border border-dashed border-slate-800 rounded-2xl">
+                        <span>Không ghi nhận lớp bận vào ngày này</span>
+                        <span className="text-[10px] text-emerald-400/80 font-sans non-italic">🎉 Nghỉ dạy!</span>
+                      </div>
+                    ) : (
+                      getClassesForCalendarDay(selectedCalDay).dailyClasses.map((dc, idx) => (
+                        <div key={idx} className="bg-slate-950/50 border border-slate-800/60 hover:border-indigo-500/30 rounded-2xl p-4 flex items-center justify-between gap-3 transition-all">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Khung Giờ</span>
+                            <span className="text-sm font-black text-indigo-300 font-mono">{dc.slot}</span>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-end gap-1.5 max-w-[50%]">
+                            {dc.classes.map(c => (
+                              <span key={c} className={`px-2.5 py-1 rounded-lg text-[9px] font-black tracking-wider uppercase shadow-sm border ${getClassColor(c)}`}>
+                                Lớp {c}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : activeTab === 'roster' ? (
           <div className="space-y-8 animate-in fade-in duration-300">
             {/* Student Details Table */}
             <div className="bg-[#111827] border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
@@ -577,6 +1024,21 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
                  <h2 className="text-lg font-bold flex items-center gap-2"><GraduationCap className="h-5 w-5 text-indigo-400"/> Quản lý Lớp & Học phí</h2>
                  <div className="flex items-center gap-3">
                    <span className="text-xs bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 px-2.5 py-1.5 rounded-lg font-black">Lớp {selectedClass}</span>
+                   
+                   <input 
+                     type="file" 
+                     id="csv-upload" 
+                     accept=".csv" 
+                     className="hidden" 
+                     onChange={handleCsvUpload} 
+                   />
+                   <label 
+                     htmlFor="csv-upload"
+                     className="cursor-pointer flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 text-emerald-400 transition-all"
+                   >
+                     <Upload className="h-3.5 w-3.5"/> Nhập từ CSV
+                   </label>
+
                    <button 
                      onClick={openBatchScheduling}
                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/20 text-indigo-400 transition-all"
@@ -1122,6 +1584,65 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* CSV IMPORT PREVIEW MODAL */}
+      {isImportingCsv && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto font-sans">
+          <div className="bg-[#111827] border border-slate-800 rounded-3xl w-full max-w-2xl p-6 relative animate-in zoom-in-95 duration-200 shadow-2xl">
+            <button onClick={() => setIsImportingCsv(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+              <X className="h-5 w-5"/>
+            </button>
+            <h3 className="text-lg font-black text-white mb-2 flex items-center gap-2">
+              <Upload className="h-5 w-5 text-emerald-400"/> Xem trước & Nhập danh sách từ CSV
+            </h3>
+            <p className="text-xs text-slate-400 mb-6">
+              Phát hiện <span className="text-emerald-400 font-black">{csvParsedStudents.length} học sinh</span> trong tệp của bạn. Vui lòng rà soát kỹ dữ liệu bên dưới trước khi tiến hành đồng bộ hóa.
+            </p>
+
+            <div className="overflow-x-auto max-h-[320px] border border-slate-800 rounded-2xl custom-scrollbar bg-slate-950/50 mb-6 shadow-inner">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead className="bg-slate-950 text-slate-400 uppercase font-black text-[10px] tracking-widest sticky top-0 z-10 border-b border-slate-800">
+                  <tr>
+                    <th className="px-4 py-3">Lớp</th>
+                    <th className="px-4 py-3">Họ và Tên</th>
+                    <th className="px-4 py-3">Lịch học</th>
+                    <th className="px-4 py-3">Học phí</th>
+                    <th className="px-4 py-3">Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-850 text-slate-300">
+                  {csvParsedStudents.map((std, i) => (
+                    <tr key={i} className="hover:bg-slate-800/20 transition-all">
+                      <td className="px-4 py-2.5 font-black text-[10px]"><span className="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-md border border-slate-700">{std.className}</span></td>
+                      <td className="px-4 py-2.5 text-white font-bold text-sm">{std.studentName}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-400">{std.schedule || <i className="text-slate-600 font-sans">Chưa rõ</i>}</td>
+                      <td className="px-4 py-2.5 text-indigo-300 font-bold font-mono">{std.tuition || '-'}</td>
+                      <td className="px-4 py-2.5 text-[10px]">
+                        <span className={`inline-block px-2 py-0.5 rounded-full font-black uppercase ${std.tuitionStatus?.toLowerCase().includes('đã') || std.tuitionStatus?.toLowerCase().includes('ok') ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'}`}>
+                          {std.tuitionStatus}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setIsImportingCsv(false)} className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold rounded-xl text-xs transition-all border border-slate-700">
+                Hủy bỏ
+              </button>
+              <button 
+                onClick={handleSubmitCsvImport}
+                disabled={isSubmittingCsv} 
+                className="flex-1 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
+              >
+                {isSubmittingCsv ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="h-4 w-4" />} 
+                {isSubmittingCsv ? 'Đang đồng bộ hóa...' : `Đồng ý thêm ${csvParsedStudents.length} học sinh`}
+              </button>
+            </div>
           </div>
         </div>
       )}
