@@ -2,7 +2,7 @@
 
 import { Exam } from "@/lib/exams";
 import Link from "next/link";
-import { BookOpen, Clock, ArrowRight, School, User, Trophy, Calendar, Trash2, Play, Search, TrendingUp, TrendingDown, BarChart3, Activity, Layers, GraduationCap } from "lucide-react";
+import { BookOpen, Clock, ArrowRight, School, User, Trophy, Calendar, Trash2, Play, Search, TrendingUp, TrendingDown, BarChart3, Activity, Layers, GraduationCap, Lock } from "lucide-react";
 import React, { useEffect, useState, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -97,12 +97,17 @@ export default function DashboardClient({ initialExams }: { initialExams: Exam[]
             <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-xl"><School className="h-5 w-5 text-white" /></div>
             <span className="text-lg font-black bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">ExamPortal Pro</span>
           </div>
-          {user && (
-            <div className="flex items-center gap-3 px-3 py-1 bg-slate-800/40 rounded-xl border border-slate-800">
-              <div className="text-right hidden sm:block"><p className="text-xs font-bold">{user.name}</p><p className="text-[10px] text-indigo-400">Lớp {user.className}</p></div>
-              <div className="h-8 w-8 bg-slate-700 rounded-full flex items-center justify-center"><User className="h-4 w-4" /></div>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            <Link href="/teacher" className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-white px-3 py-1.5 border border-slate-800 hover:border-indigo-500/30 rounded-xl hover:bg-indigo-500/5 transition-all mr-2">
+              <Lock className="h-3 w-3 text-indigo-400" /> Khu vực Giáo viên
+            </Link>
+            {user && (
+              <div className="flex items-center gap-3 px-3 py-1 bg-slate-800/40 rounded-xl border border-slate-800">
+                <div className="text-right hidden sm:block"><p className="text-xs font-bold">{user.name}</p><p className="text-[10px] text-indigo-400">Lớp {user.className}</p></div>
+                <div className="h-8 w-8 bg-slate-700 rounded-full flex items-center justify-center"><User className="h-4 w-4" /></div>
+              </div>
+            )}
+          </div>
         </div>
       </nav>
 

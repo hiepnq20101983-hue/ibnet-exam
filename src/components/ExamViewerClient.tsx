@@ -79,7 +79,7 @@ export default function ExamViewerClient({ examId }: { examId: string }) {
       }
     };
 
-    const saveHistory = (finalScore: string) => {
+    const saveHistory = async (finalScore: string) => {
       const rawHistory = localStorage.getItem('exam_history');
       const history = rawHistory ? JSON.parse(rawHistory) : [];
       
@@ -92,6 +92,28 @@ export default function ExamViewerClient({ examId }: { examId: string }) {
       
       history.push(record);
       localStorage.setItem('exam_history', JSON.stringify(history));
+
+      // Automatically sync submission to Google Sheet if configured
+      const sheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+      if (sheetUrl && student) {
+        try {
+          await fetch(sheetUrl, {
+            method: 'POST',
+            mode: 'no-cors', // Critical for handling redirection in Apps Script Web App CORS limits
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'add_submission',
+              studentName: student.name.trim(),
+              className: student.className.trim(),
+              examId: examId,
+              examTitle: record.title,
+              score: finalScore
+            })
+          });
+        } catch (err) {
+          console.error("Failed to sync to central Google Sheet:", err);
+        }
+      }
     };
 
     const interval = setInterval(checkIframe, 2000);
