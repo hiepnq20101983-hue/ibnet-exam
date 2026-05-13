@@ -5,7 +5,7 @@ import ExamViewerClient from "@/components/ExamViewerClient";
 export async function generateStaticParams() {
   const exams = await getExams();
   return exams.map((exam) => ({
-    id: exam.filename.replace(/\.html$/i, '').split('/'), 
+    id: exam.id.split('/'), 
   }));
 }
 

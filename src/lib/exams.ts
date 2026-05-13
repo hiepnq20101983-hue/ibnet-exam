@@ -47,8 +47,9 @@ export async function getExams(): Promise<Exam[]> {
         const data = await res.json();
         if (Array.isArray(data)) {
           // Return the pre-parsed metadata from Apps Script!
+          // Inject a unique prefix 'drive-' into the ID to ensure infallible client-side routing
           return data.map(item => ({
-            id: item.id,
+            id: `drive-${item.id}`,
             filename: item.filename,
             title: item.title,
             duration: item.duration,
@@ -111,8 +112,11 @@ export async function getExams(): Promise<Exam[]> {
     const duration = $('.exam-meta').text().trim() || 'Không rõ thời gian';
     const summary = $('.score-summary').text().trim() || '';
     
+    // Create unified, clean ID by stripping the .html extension for local files
+    const unifiedId = normalizedPath.replace(/\.html$/i, '');
+
     return {
-      id: normalizedPath,
+      id: unifiedId,
       filename: normalizedPath,
       title: title,
       examClass: examClass,
