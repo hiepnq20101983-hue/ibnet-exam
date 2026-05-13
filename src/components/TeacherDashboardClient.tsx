@@ -911,7 +911,6 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
         )}
 
       </div>
-    </main>
 
       {/* ADD STUDENT MODAL */}
       {isAddingStudent && (
