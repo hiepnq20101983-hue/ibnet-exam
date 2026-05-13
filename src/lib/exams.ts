@@ -33,6 +33,38 @@ function getAllFiles(dirPath: string, arrayOfFiles: string[] = [], rootPath?: st
 }
 
 export async function getExams(): Promise<Exam[]> {
+  const driveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+  const sheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+
+  // 1. Dynamic Loading from Google Drive
+  if (driveFolderId && sheetUrl) {
+    try {
+      const res = await fetch(`${sheetUrl}?action=get_drive_exams&folderId=${driveFolderId}`, {
+        next: { revalidate: 60 } // Cache list for 60 seconds
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          // Return the pre-parsed metadata from Apps Script!
+          return data.map(item => ({
+            id: item.id,
+            filename: item.filename,
+            title: item.title,
+            duration: item.duration,
+            summary: item.summary,
+            examClass: item.examClass,
+            examTopic: item.examTopic
+          }));
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch dynamic exams from Google Drive:", err);
+      // Fallback to FS
+    }
+  }
+
+  // 2. Fallback Local System Scanning
   const examsDir = path.join(process.cwd(), 'public', 'assets', 'exams');
   
   if (!fs.existsSync(examsDir)) {

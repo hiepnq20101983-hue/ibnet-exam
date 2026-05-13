@@ -6,7 +6,7 @@ import {
   Users, School, Calendar, ArrowLeft, Lock, KeyRound, Loader2, 
   RefreshCw, Search, CheckCircle2, XCircle, GraduationCap, 
   BookOpen, Trophy, PieChart, ArrowRight, Download, Filter, AlertCircle,
-  Copy, Activity
+  Copy, Activity, Plus, Edit, X, UserPlus
 } from "lucide-react";
 import React, { useEffect, useState, useMemo } from 'react';
 import { ResponsiveContainer, Cell, PieChart as RechartsPieChart, Pie } from 'recharts';
@@ -53,7 +53,153 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
   
   const [selectedClass, setSelectedClass] = useState("Tất cả");
   const [selectedExam, setSelectedExam] = useState<string>("all");
+
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [newStudent, setNewStudent] = useState({ name: "", className: "", schedule: "", tuition: "", tuitionStatus: "Chưa đóng" });
+  const [isSubmittingStudent, setIsSubmittingStudent] = useState(false);
   
+  const [editingStudent, setEditingStudent] = useState<StudentRoster | null>(null);
+  const [editForm, setEditForm] = useState({ schedule: "", tuition: "", tuitionStatus: "" });
+  const [isUpdatingStudent, setIsUpdatingStudent] = useState(false);
+
+  const openAddStudent = () => {
+    setNewStudent({
+      name: "",
+      className: selectedClass !== "Tất cả" ? selectedClass : "",
+      schedule: "",
+      tuition: "",
+      tuitionStatus: "Chưa đóng"
+    });
+    setIsAddingStudent(true);
+  };
+
+  const handleAddStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStudent.name.trim() || !newStudent.className.trim() || !sheetUrl) return;
+    setIsSubmittingStudent(true);
+    try {
+      await fetch(sheetUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add_student',
+          studentName: newStudent.name.trim(),
+          className: newStudent.className.trim(),
+          schedule: newStudent.schedule.trim(),
+          tuition: newStudent.tuition.trim(),
+          tuitionStatus: newStudent.tuitionStatus.trim()
+        })
+      });
+      setIsAddingStudent(false);
+      setTimeout(() => {
+        fetchData();
+      }, 800);
+    } catch (err: any) {
+      alert("Lỗi: " + err.message);
+    } finally {
+      setIsSubmittingStudent(false);
+    }
+  };
+
+  const handleEditStudent = (student: StudentRoster) => {
+    setEditingStudent(student);
+    setEditForm({
+      schedule: student.schedule || "",
+      tuition: student.tuition || "",
+      tuitionStatus: student.tuitionStatus || "Chưa đóng"
+    });
+  };
+
+  const handleUpdateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent || !sheetUrl) return;
+    setIsUpdatingStudent(true);
+    try {
+      await fetch(sheetUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_student',
+          studentName: editingStudent.studentName,
+          className: editingStudent.className,
+          schedule: editForm.schedule.trim(),
+          tuition: editForm.tuition.trim(),
+          tuitionStatus: editForm.tuitionStatus.trim()
+        })
+      });
+      setEditingStudent(null);
+      setTimeout(() => {
+        fetchData();
+      }, 800);
+    } catch (err: any) {
+      alert("Lỗi: " + err.message);
+    } finally {
+      setIsUpdatingStudent(false);
+    }
+  };
+  
+  const [selectedStudentNames, setSelectedStudentNames] = useState<string[]>([]);
+  const [isBatchScheduling, setIsBatchScheduling] = useState(false);
+  const [batchForm, setBatchForm] = useState({ targetType: 'class' as 'class' | 'students', schedule: "" });
+  const [isSubmittingBatch, setIsSubmittingBatch] = useState(false);
+
+  // Clear checked students when changing class
+  useEffect(() => {
+    setSelectedStudentNames([]);
+  }, [selectedClass]);
+
+  const openBatchScheduling = () => {
+    setBatchForm({
+      targetType: selectedStudentNames.length > 0 ? 'students' : 'class',
+      schedule: ""
+    });
+    setIsBatchScheduling(true);
+  };
+
+  const toggleStudentSelection = (name: string) => {
+    setSelectedStudentNames(prev => 
+      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+    );
+  };
+
+  const handleBatchSchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sheetUrl || selectedClass === "Tất cả") return;
+    
+    if (batchForm.targetType === 'students' && selectedStudentNames.length === 0) {
+      alert("Vui lòng chọn ít nhất một học sinh!");
+      return;
+    }
+    
+    setIsSubmittingBatch(true);
+    try {
+      await fetch(sheetUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_schedule_batch',
+          className: selectedClass,
+          targetType: batchForm.targetType,
+          studentNames: batchForm.targetType === 'students' ? selectedStudentNames : [],
+          schedule: batchForm.schedule.trim()
+        })
+      });
+      
+      setIsBatchScheduling(false);
+      setSelectedStudentNames([]);
+      setTimeout(() => {
+        fetchData();
+      }, 800);
+    } catch (err: any) {
+      alert("Lỗi: " + err.message);
+    } finally {
+      setIsSubmittingBatch(false);
+    }
+  };
+
   const handleCopyLink = (studentName: string, className: string) => {
     const baseUrl = window.location.origin;
     const fullUrl = `${baseUrl}/parent?class=${encodeURIComponent(className)}&name=${encodeURIComponent(studentName)}`;
@@ -200,7 +346,6 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
 
   // Roster is empty check
   const isRosterEmpty = roster.length === 0;
-
   if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-[#0B0F17] flex flex-col items-center justify-center px-6 relative font-sans text-slate-100 overflow-hidden">
@@ -239,10 +384,6 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
               Xác nhận truy cập <ArrowRight className="h-5 w-5" />
             </button>
           </form>
-          
-          <div className="mt-6 pt-6 border-t border-slate-800 text-center">
-             <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Gợi ý: Mã pin mặc định là `123456`</p>
-          </div>
         </div>
       </div>
     );
@@ -432,9 +573,23 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
           <div className="space-y-8 animate-in fade-in duration-300">
             {/* Student Details Table */}
             <div className="bg-[#111827] border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
-              <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+              <div className="px-6 py-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/50">
                  <h2 className="text-lg font-bold flex items-center gap-2"><GraduationCap className="h-5 w-5 text-indigo-400"/> Quản lý Lớp & Học phí</h2>
-                 <span className="text-xs bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 px-2.5 py-1 rounded-lg">Lớp {selectedClass}</span>
+                 <div className="flex items-center gap-3">
+                   <span className="text-xs bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 px-2.5 py-1.5 rounded-lg font-black">Lớp {selectedClass}</span>
+                   <button 
+                     onClick={openBatchScheduling}
+                     className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/20 text-indigo-400 transition-all"
+                   >
+                     <Calendar className="h-3.5 w-3.5"/> Xếp Lịch Nhóm/Lớp
+                   </button>
+                   <button 
+                     onClick={openAddStudent}
+                     className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 text-white shadow-lg shadow-indigo-600/20 transition-all"
+                   >
+                     <Plus className="h-3.5 w-3.5"/> Thêm Học Sinh
+                   </button>
+                 </div>
               </div>
               <div className="overflow-x-auto custom-scrollbar">
                  {classRoster.length === 0 ? (
@@ -446,12 +601,26 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
                     <table className="w-full text-left border-collapse text-sm">
                        <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-black tracking-wider sticky top-0 z-10">
                           <tr>
+                             <th className="px-4 py-4 w-10 text-center">
+                               <input 
+                                 type="checkbox" 
+                                 checked={classRoster.length > 0 && selectedStudentNames.length === classRoster.length}
+                                 onChange={(e) => {
+                                   if (e.target.checked) {
+                                     setSelectedStudentNames(classRoster.map(r => r.studentName));
+                                   } else {
+                                     setSelectedStudentNames([]);
+                                   }
+                                 }}
+                                 className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-slate-950 h-4 w-4 cursor-pointer"
+                               />
+                             </th>
                              <th className="px-6 py-4 w-12 text-center">STT</th>
                              <th className="px-6 py-4">Họ và Tên</th>
                              <th className="px-6 py-4">Lịch học</th>
                              <th className="px-6 py-4">Học phí</th>
                              <th className="px-6 py-4">Trạng thái</th>
-                             <th className="px-6 py-4 text-center">Link Phụ Huynh</th>
+                             <th className="px-6 py-4 text-center">Thao tác</th>
                           </tr>
                        </thead>
                        <tbody className="divide-y divide-slate-800">
@@ -460,7 +629,15 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
                             .map((stud, idx) => {
                               const isCopied = copiedStudent === `${stud.className}-${stud.studentName}`;
                               return (
-                                <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
+                                <tr key={idx} className={`hover:bg-slate-800/30 transition-colors ${selectedStudentNames.includes(stud.studentName) ? 'bg-indigo-600/5' : ''}`}>
+                                   <td className="px-4 py-4 text-center">
+                                     <input 
+                                       type="checkbox" 
+                                       checked={selectedStudentNames.includes(stud.studentName)}
+                                       onChange={() => toggleStudentSelection(stud.studentName)}
+                                       className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-slate-950 h-4 w-4 cursor-pointer"
+                                     />
+                                   </td>
                                    <td className="px-6 py-4 text-center text-slate-500 font-mono text-xs">{idx + 1}</td>
                                    <td className="px-6 py-4 font-bold text-white">{stud.studentName}</td>
                                    <td className="px-6 py-4 text-slate-300 font-medium">
@@ -485,18 +662,26 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
                                         <span className="text-slate-600 text-xs italic">Chưa nhập</span>
                                       )}
                                    </td>
-                                   <td className="px-6 py-4 text-center">
-                                      <button 
-                                        onClick={() => handleCopyLink(stud.studentName, stud.className)}
-                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 ${
-                                          isCopied 
-                                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 border-emerald-500' 
-                                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-indigo-500/50'
-                                        } border`}
-                                      >
-                                        {isCopied ? <CheckCircle2 className="h-3.5 w-3.5"/> : <Copy className="h-3.5 w-3.5"/>}
-                                        {isCopied ? 'Đã copy link' : 'Copy Link Theo Dõi'}
-                                      </button>
+                                   <td className="px-6 py-4">
+                                      <div className="flex items-center justify-center gap-2">
+                                        <button 
+                                          onClick={() => handleEditStudent(stud)}
+                                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/20 text-indigo-400 transition-all duration-300"
+                                        >
+                                          <Edit className="h-3.5 w-3.5"/> Sắp lịch/Sửa
+                                        </button>
+                                        <button 
+                                          onClick={() => handleCopyLink(stud.studentName, stud.className)}
+                                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 ${
+                                            isCopied 
+                                              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 border-emerald-500' 
+                                              : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-indigo-500/50'
+                                          } border`}
+                                        >
+                                          {isCopied ? <CheckCircle2 className="h-3.5 w-3.5"/> : <Copy className="h-3.5 w-3.5"/>}
+                                          {isCopied ? 'Link' : 'Link PH'}
+                                        </button>
+                                      </div>
                                    </td>
                                 </tr>
                               )
@@ -726,6 +911,221 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
         )}
 
       </div>
+    </main>
+
+      {/* ADD STUDENT MODAL */}
+      {isAddingStudent && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto font-sans">
+          <div className="bg-[#111827] border border-slate-800 rounded-3xl w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 shadow-2xl">
+            <button onClick={() => setIsAddingStudent(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+              <X className="h-5 w-5"/>
+            </button>
+            <h3 className="text-lg font-black text-white mb-6 flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-indigo-400"/> Thêm học sinh mới
+            </h3>
+            <form onSubmit={handleAddStudent} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Tên lớp *</label>
+                <input 
+                  type="text" required placeholder="Ví dụ: 9A, 12B1..."
+                  value={newStudent.className} 
+                  onChange={e => setNewStudent({...newStudent, className: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 text-white text-sm rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Họ và tên *</label>
+                <input 
+                  type="text" required placeholder="Họ tên học sinh"
+                  value={newStudent.name} 
+                  onChange={e => setNewStudent({...newStudent, name: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 text-white text-sm rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Lịch học thêm</label>
+                <input 
+                  type="text" placeholder="Ví dụ: Thứ 2, Thứ 6 (17:30 - 19:00)"
+                  value={newStudent.schedule} 
+                  onChange={e => setNewStudent({...newStudent, schedule: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 text-white text-sm rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Học phí</label>
+                  <input 
+                    type="text" placeholder="Ví dụ: 500.000"
+                    value={newStudent.tuition} 
+                    onChange={e => setNewStudent({...newStudent, tuition: e.target.value})}
+                    className="w-full bg-slate-950 border border-slate-800 text-white text-sm rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Trạng thái</label>
+                  <select 
+                    value={newStudent.tuitionStatus} 
+                    onChange={e => setNewStudent({...newStudent, tuitionStatus: e.target.value})}
+                    className="w-full bg-slate-950 border border-slate-800 text-white text-sm rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-500"
+                  >
+                    <option value="Chưa đóng">Chưa đóng</option>
+                    <option value="Đã đóng">Đã đóng</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="pt-4 flex gap-3">
+                <button type="button" onClick={() => setIsAddingStudent(false)} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-sm transition-colors">
+                  Hủy
+                </button>
+                <button type="submit" disabled={isSubmittingStudent} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+                  {isSubmittingStudent ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Lưu học sinh'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT STUDENT MODAL */}
+      {editingStudent && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto font-sans">
+          <div className="bg-[#111827] border border-slate-800 rounded-3xl w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 shadow-2xl">
+            <button onClick={() => setEditingStudent(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+              <X className="h-5 w-5"/>
+            </button>
+            <h3 className="text-lg font-black text-white mb-2 flex items-center gap-2">
+              <Edit className="h-5 w-5 text-indigo-400"/> Sắp lịch & Thông tin học phí
+            </h3>
+            <p className="text-sm text-slate-400 mb-6 font-medium">
+              Học sinh: <span className="text-white font-bold">{editingStudent.studentName}</span> (Lớp {editingStudent.className})
+            </p>
+            <form onSubmit={handleUpdateStudent} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-1">
+                  <Calendar className="h-3.5 w-3.5"/> Lịch học thêm
+                </label>
+                <input 
+                  type="text" placeholder="Ví dụ: Thứ 3, Thứ 7 (18:00 - 19:30)"
+                  value={editForm.schedule} 
+                  onChange={e => setEditForm({...editForm, schedule: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 text-white text-sm rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Học phí</label>
+                  <input 
+                    type="text" placeholder="Ví dụ: 600.000"
+                    value={editForm.tuition} 
+                    onChange={e => setEditForm({...editForm, tuition: e.target.value})}
+                    className="w-full bg-slate-950 border border-slate-800 text-white text-sm rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Trạng thái</label>
+                  <select 
+                    value={editForm.tuitionStatus} 
+                    onChange={e => setEditForm({...editForm, tuitionStatus: e.target.value})}
+                    className="w-full bg-slate-950 border border-slate-800 text-white text-sm rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-500"
+                  >
+                    <option value="Chưa đóng">Chưa đóng</option>
+                    <option value="Đã đóng">Đã đóng</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="pt-4 flex gap-3">
+                <button type="button" onClick={() => setEditingStudent(null)} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-sm transition-colors">
+                  Hủy
+                </button>
+                <button type="submit" disabled={isUpdatingStudent} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+                  {isUpdatingStudent ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Lưu thay đổi'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* BATCH SCHEDULING MODAL */}
+      {isBatchScheduling && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto font-sans">
+          <div className="bg-[#111827] border border-slate-800 rounded-3xl w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 shadow-2xl">
+            <button onClick={() => setIsBatchScheduling(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+              <X className="h-5 w-5"/>
+            </button>
+            <h3 className="text-lg font-black text-white mb-2 flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-indigo-400"/> Xếp Lịch Nhóm & Lớp
+            </h3>
+            <p className="text-xs text-slate-400 mb-6">
+              Cập nhật lịch học thêm cho hàng loạt học sinh trong Lớp <span className="text-indigo-400 font-black">{selectedClass}</span>.
+            </p>
+            
+            <form onSubmit={handleBatchSchedule} className="space-y-5">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-3 tracking-wider">Đối tượng áp dụng</label>
+                <div className="grid grid-cols-1 gap-3">
+                  <label className={`flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all ${batchForm.targetType === 'class' ? 'bg-indigo-600/10 border-indigo-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'}`}>
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="radio" name="targetType" value="class" 
+                        checked={batchForm.targetType === 'class'}
+                        onChange={() => setBatchForm({...batchForm, targetType: 'class'})}
+                        className="text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div>
+                        <p className="text-sm font-bold">Toàn bộ Lớp {selectedClass}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Tất cả học sinh hiện có trong lớp này</p>
+                      </div>
+                    </div>
+                    <span className="bg-indigo-600/20 text-indigo-400 text-xs font-bold px-2.5 py-0.5 rounded-full">{classRoster.length} HS</span>
+                  </label>
+
+                  <label className={`flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all ${batchForm.targetType === 'students' ? 'bg-indigo-600/10 border-indigo-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'} ${selectedStudentNames.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="radio" name="targetType" value="students" 
+                        checked={batchForm.targetType === 'students'}
+                        disabled={selectedStudentNames.length === 0}
+                        onChange={() => setBatchForm({...batchForm, targetType: 'students'})}
+                        className="text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div>
+                        <p className="text-sm font-bold">Danh sách học sinh được chọn</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {selectedStudentNames.length > 0 
+                            ? `Đang chọn: ${selectedStudentNames.slice(0, 3).join(', ')}${selectedStudentNames.length > 3 ? '...' : ''}` 
+                            : 'Cần tick chọn học sinh ở bảng danh sách trước'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="bg-purple-600/20 text-purple-400 text-xs font-bold px-2.5 py-0.5 rounded-full">{selectedStudentNames.length} HS</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wider">Nhập lịch học thêm mới</label>
+                <input 
+                  type="text" required placeholder="Ví dụ: Thứ 3, Thứ 7 (18:00 - 19:30)"
+                  value={batchForm.schedule} 
+                  onChange={e => setBatchForm({...batchForm, schedule: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 text-white text-sm rounded-xl px-4 py-3.5 outline-none focus:ring-1 ring-indigo-500 font-medium"
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button type="button" onClick={() => setIsBatchScheduling(false)} className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold rounded-xl text-sm transition-all">
+                  Hủy bỏ
+                </button>
+                <button type="submit" disabled={isSubmittingBatch} className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
+                  {isSubmittingBatch ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Xác nhận Xếp lịch'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

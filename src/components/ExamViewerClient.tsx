@@ -136,9 +136,11 @@ export default function ExamViewerClient({ examId }: { examId: string }) {
      if (iframeRef.current?.requestFullscreen) iframeRef.current.requestFullscreen();
   };
 
-  // URL encode each segment independently to ensure browser maps space/% correctly
-  const encodedExamId = examId.split('/').map(encodeURIComponent).join('/');
-  const resolvedSrc = `${basePath}/assets/exams/${encodedExamId}.html`;
+  // Check if loading from dynamic Google Drive (typically 33-44 alphanumeric ID) or local static asset path
+  const isDriveExam = !examId.endsWith('.html');
+  const resolvedSrc = isDriveExam 
+    ? `/api/exams/${examId}` 
+    : `${basePath}/assets/exams/${examId.split('/').map(encodeURIComponent).join('/')}`;
 
   return (
     <div className="fixed inset-0 flex flex-col bg-[#0B0F17] overflow-hidden z-50 h-screen">
