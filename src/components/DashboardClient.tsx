@@ -2,9 +2,16 @@
 
 import { Exam } from "@/lib/exams";
 import Link from "next/link";
-import { BookOpen, Clock, ArrowRight, School, User, Trophy, Calendar, Trash2, Play, Search, TrendingUp, TrendingDown, BarChart3, Activity, Layers, GraduationCap, Lock } from "lucide-react";
+import { BookOpen, Clock, ArrowRight, School, User, Trophy, Calendar, Trash2, Play, Search, TrendingUp, TrendingDown, BarChart3, Activity, Layers, GraduationCap, Lock, Hourglass, Loader2, EyeOff } from "lucide-react";
 import React, { useEffect, useState, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+interface ExamConfig {
+  examId: string;
+  status: string; // 'Công khai' | 'Ẩn' | 'Hẹn giờ'
+  startTime: string;
+  endTime: string;
+}
 
 export default function DashboardClient({ initialExams }: { initialExams: Exam[] }) {
   const [exams] = useState<Exam[]>(initialExams);
@@ -16,6 +23,8 @@ export default function DashboardClient({ initialExams }: { initialExams: Exam[]
   const [showUserModal, setShowUserModal] = useState(false);
   const [tempName, setTempName] = useState('');
   const [tempClass, setTempClass] = useState('');
+  const [examConfigs, setExamConfigs] = useState<ExamConfig[]>([]);
+  const [isConfigsLoading, setIsConfigsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
 
   // Derive distinct filter options
@@ -48,6 +57,21 @@ export default function DashboardClient({ initialExams }: { initialExams: Exam[]
 
     const savedHistory = localStorage.getItem('exam_history');
     if (savedHistory) setHistory(JSON.parse(savedHistory));
+
+    const sheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+    if (sheetUrl) {
+      fetch(`${sheetUrl}?action=get_data`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.examConfigs) {
+            setExamConfigs(data.examConfigs);
+          }
+        })
+        .catch(err => console.error("Lỗi tải cấu hình:", err))
+        .finally(() => setIsConfigsLoading(false));
+    } else {
+      setIsConfigsLoading(false);
+    }
   }, []);
 
   // Automatically filter content based on the student's registered class
@@ -119,6 +143,41 @@ export default function DashboardClient({ initialExams }: { initialExams: Exam[]
     const matchesTopic = activeTopic === 'Tất cả' || e.examTopic === activeTopic;
     return matchesSearch && matchesClass && matchesTopic;
   });
+
+  const visibleExams = useMemo(() => {
+    const now = new Date();
+    
+    return filteredExams.map(exam => {
+      const config = examConfigs.find(c => c.examId === exam.id);
+      let isHidden = false;
+      let isLocked = false;
+      let unlockReason = "";
+
+      if (config) {
+        if (config.status === 'Ẩn') {
+          isHidden = true;
+        } else if (config.status === 'Hẹn giờ') {
+          const start = config.startTime ? new Date(config.startTime) : null;
+          const end = config.endTime ? new Date(config.endTime) : null;
+          
+          if (start && now < start) {
+            isLocked = true;
+            unlockReason = `Mở vào ${start.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}`;
+          } else if (end && now > end) {
+            isLocked = true;
+            unlockReason = `Đã kết thúc lúc ${end.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}`;
+          }
+        }
+      }
+
+      return {
+        ...exam,
+        isHidden,
+        isLocked,
+        unlockReason
+      };
+    }).filter(e => !e.isHidden);
+  }, [filteredExams, examConfigs]);
 
   const reversedHistory = [...history].reverse().slice(0, 5);
 
@@ -263,37 +322,82 @@ export default function DashboardClient({ initialExams }: { initialExams: Exam[]
              <div className="flex items-center justify-between mb-6">
                <h2 className="text-xl font-black flex items-center gap-3">
                  Bộ sưu tập đề thi
-                 <span className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs px-2 py-0.5 rounded-lg">{filteredExams.length}</span>
+                 {!isConfigsLoading && (
+                   <span className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs px-2 py-0.5 rounded-lg">{visibleExams.length}</span>
+                 )}
                </h2>
              </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-               {filteredExams.map(exam => (
-                 <div key={exam.id} className="bg-[#111827] border border-slate-800 rounded-2xl p-5 hover:-translate-y-1 transition-all hover:border-indigo-500/30 group relative overflow-hidden shadow-lg">
-                   <div className="absolute top-0 left-0 w-1 h-full bg-indigo-600 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></div>
-                   
-                   <div className="flex items-center gap-2 mb-3 flex-wrap">
-                      <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded-md text-[9px] font-black tracking-wider uppercase border border-indigo-500/10">{exam.examClass}</span>
-                      <span className="px-2 py-0.5 bg-violet-500/10 text-violet-400 rounded-md text-[9px] font-black tracking-wider uppercase border border-violet-500/10">{exam.examTopic}</span>
+             {isConfigsLoading ? (
+               <div className="py-32 flex flex-col items-center justify-center text-slate-500 gap-3 bg-slate-950/30 border border-slate-850 rounded-3xl border-dashed">
+                 <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                 <span className="text-xs font-bold tracking-wider uppercase">Đang đồng bộ danh sách đề thi...</span>
+               </div>
+             ) : (
+               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                 {visibleExams.map(exam => (
+                   <div key={exam.id} className={`bg-[#111827] border rounded-2xl p-5 transition-all group relative overflow-hidden shadow-lg ${
+                     exam.isLocked 
+                       ? 'opacity-65 grayscale-[35%] border-slate-850 shadow-none' 
+                       : 'hover:-translate-y-1 hover:border-indigo-500/30 border-slate-800'
+                   }`}>
+                     {!exam.isLocked && (
+                       <div className="absolute top-0 left-0 w-1 h-full bg-indigo-600 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></div>
+                     )}
+                     
+                     <div className="flex items-center justify-between gap-2 mb-3">
+                       <div className="flex items-center gap-2 flex-wrap">
+                         <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded-md text-[9px] font-black tracking-wider uppercase border border-indigo-500/10">{exam.examClass}</span>
+                         <span className="px-2 py-0.5 bg-violet-500/10 text-violet-400 rounded-md text-[9px] font-black tracking-wider uppercase border border-violet-500/10">{exam.examTopic}</span>
+                       </div>
+                       {exam.isLocked && (
+                         <span className="text-[9px] font-black bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full uppercase flex items-center gap-1 shrink-0 font-sans">
+                           <Lock className="h-2.5 w-2.5" /> Khóa
+                         </span>
+                       )}
+                     </div>
+                     
+                     <h3 className={`font-bold line-clamp-2 min-h-[3rem] transition-colors ${
+                       exam.isLocked 
+                         ? 'text-slate-400' 
+                         : 'text-white group-hover:text-indigo-300'
+                     }`}>
+                       {exam.title}
+                     </h3>
+                     
+                     <div className="mt-4 pt-4 border-t border-slate-800 flex flex-col gap-3">
+                       {exam.isLocked && (
+                         <div className="flex items-center gap-2 bg-slate-950 border border-slate-850 p-2.5 rounded-xl text-[10px] text-amber-400/90 font-bold animate-in fade-in duration-300">
+                           <Hourglass className="h-3.5 w-3.5 text-amber-500 shrink-0 animate-pulse" />
+                           <span>{exam.unlockReason}</span>
+                         </div>
+                       )}
+                       
+                       <div className="flex items-center justify-between w-full">
+                         <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold"><Clock className="h-3 w-3"/> {exam.duration || '45 Phút'}</div>
+                         
+                         {exam.isLocked ? (
+                           <div className="px-4 py-2 bg-slate-800/50 text-slate-500 border border-slate-800 rounded-xl text-xs font-black flex items-center gap-1 select-none">
+                             Chưa mở
+                           </div>
+                         ) : (
+                           <Link href={`/exams/${exam.id}`} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-black flex items-center gap-1 shadow-md shadow-indigo-900/20 hover:bg-indigo-500 transform active:scale-95 transition-all cursor-pointer">
+                             Vào thi <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
+                           </Link>
+                         )}
+                       </div>
+                     </div>
                    </div>
-                   
-                   <h3 className="font-bold text-white line-clamp-2 min-h-[3rem] group-hover:text-indigo-300 transition-colors">{exam.title}</h3>
-                   
-                   <div className="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between">
-                     <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold"><Clock className="h-3 w-3"/> {exam.duration || '45 Phút'}</div>
-                     <Link href={`/exams/${exam.id}`} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-black flex items-center gap-1 shadow-md shadow-indigo-900/20 hover:bg-indigo-500 transform active:scale-95 transition-all cursor-pointer">
-                       Vào thi <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
-                     </Link>
+                 ))}
+                 
+                 {visibleExams.length === 0 && (
+                   <div className="col-span-full py-24 text-center border border-dashed border-slate-800 rounded-3xl bg-slate-950/20 flex flex-col items-center justify-center">
+                     <EyeOff className="h-10 w-10 text-slate-700 mb-3" />
+                     <div className="text-slate-500 font-bold">Hiện tại chưa có đề thi nào khả dụng trong mục này.</div>
                    </div>
-                 </div>
-               ))}
-               
-               {filteredExams.length === 0 && (
-                 <div className="col-span-full py-20 text-center border border-dashed border-slate-800 rounded-3xl">
-                    <div className="text-slate-600 font-bold">Không tìm thấy đề phù hợp</div>
-                 </div>
-               )}
-             </div>
+                 )}
+               </div>
+             )}
           </div>
 
         </div>

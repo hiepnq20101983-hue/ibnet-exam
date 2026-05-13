@@ -1,7 +1,7 @@
 'use client';
 
 import Link from "next/link";
-import { ChevronLeft, RotateCcw, Maximize2, User, Sparkles, Trophy } from "lucide-react";
+import { ChevronLeft, RotateCcw, Maximize2, User, Sparkles, Trophy, Lock, AlertTriangle, Loader2, Clock } from "lucide-react";
 import React, { useEffect, useRef, useState } from 'react';
 import { usePathname } from "next/navigation";
 
@@ -12,6 +12,8 @@ export default function ExamViewerClient({ examId }: { examId: string }) {
   const [isCompleted, setIsCompleted] = useState(false);
   const [basePath, setBasePath] = useState('');
   const pathname = usePathname();
+  const [isCheckingLock, setIsCheckingLock] = useState(true);
+  const [lockStatus, setLockStatus] = useState<{ isLocked: boolean; reason: string }>({ isLocked: false, reason: '' });
 
   // Dynamically resolve the basePath in browser by comparing browser path vs app path
   useEffect(() => {
@@ -22,6 +24,44 @@ export default function ExamViewerClient({ examId }: { examId: string }) {
       }
     }
   }, [pathname]);
+
+  useEffect(() => {
+    const sheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+    if (!sheetUrl) {
+      setIsCheckingLock(false);
+      return;
+    }
+
+    fetch(`${sheetUrl}?action=get_data`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.examConfigs) {
+          const config = data.examConfigs.find((c: any) => c.examId === examId);
+          if (config) {
+            const now = new Date();
+            if (config.status === 'Ẩn') {
+              setLockStatus({ isLocked: true, reason: 'Bài thi này hiện đang tạm ẩn theo yêu cầu của Giáo viên.' });
+            } else if (config.status === 'Hẹn giờ') {
+              const start = config.startTime ? new Date(config.startTime) : null;
+              const end = config.endTime ? new Date(config.endTime) : null;
+              if (start && now < start) {
+                setLockStatus({ 
+                  isLocked: true, 
+                  reason: `Bài thi chưa bắt đầu thời gian làm bài. Lịch mở thi dự kiến: ${start.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}.` 
+                });
+              } else if (end && now > end) {
+                setLockStatus({ 
+                  isLocked: true, 
+                  reason: `Thời gian làm bài thi này đã kết thúc vào lúc: ${end.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}.` 
+                });
+              }
+            }
+          }
+        }
+      })
+      .catch(err => console.error("Không thể tải cấu hình chặn truy cập:", err))
+      .finally(() => setIsCheckingLock(false));
+  }, [examId]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('exam_user');
@@ -167,13 +207,36 @@ export default function ExamViewerClient({ examId }: { examId: string }) {
         </div>
       </header>
 
-      <main className="flex-1 relative w-full bg-[#F3F4F6]">
-        <iframe 
-           ref={iframeRef}
-           src={resolvedSrc}
-           className="absolute inset-0 w-full h-full border-none bg-white"
-           sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-downloads"
-        />
+      <main className="flex-1 relative w-full bg-[#F3F4F6] overflow-hidden">
+        {isCheckingLock ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0B0F17] text-slate-400 gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+            <p className="text-xs font-black tracking-wider uppercase">Đang kiểm tra bảo mật đề thi...</p>
+          </div>
+        ) : lockStatus.isLocked ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0B0F17] p-6 text-center animate-in fade-in zoom-in-95 duration-300">
+            <div className="bg-[#111827] border border-slate-800 p-8 max-w-md rounded-3xl flex flex-col items-center shadow-2xl shadow-indigo-500/5">
+              <div className="h-16 w-16 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 mb-6">
+                <Lock className="h-8 w-8" />
+              </div>
+              <h2 className="text-xl font-black text-white mb-3">TRUY CẬP BỊ GIỚI HẠN</h2>
+              <p className="text-sm text-slate-400 leading-relaxed mb-8 bg-slate-950 p-4 rounded-2xl border border-slate-850 select-none font-medium">
+                {lockStatus.reason}
+              </p>
+              
+              <Link href="/" className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-black rounded-2xl shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition-all active:scale-95">
+                <ChevronLeft className="h-4 w-4" /> Trở về Trang chủ
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <iframe 
+             ref={iframeRef}
+             src={resolvedSrc}
+             className="absolute inset-0 w-full h-full border-none bg-white"
+             sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-downloads"
+          />
+        )}
       </main>
     </div>
   );

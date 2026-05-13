@@ -159,6 +159,39 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({result: "success", count: updatedCount}))
         .setMimeType(ContentService.MimeType.JSON);
     }
+
+    if (data.action === 'update_exam_config') {
+      var configSheet = ss.getSheetByName("ExamConfigs");
+      if (!configSheet) {
+        configSheet = ss.insertSheet("ExamConfigs");
+        configSheet.appendRow(["Mã Đề", "Trạng thái", "Thời gian bắt đầu", "Thời gian kết thúc"]);
+        configSheet.getRange("A1:D1").setFontWeight("bold").setBackground("#f3f4f6");
+      }
+      
+      var dataValues = configSheet.getDataRange().getValues();
+      var examId = String(data.examId).trim();
+      var status = String(data.status || "Công khai").trim();
+      var startTime = String(data.startTime || "").trim();
+      var endTime = String(data.endTime || "").trim();
+      
+      var found = false;
+      for (var i = 1; i < dataValues.length; i++) {
+        if (String(dataValues[i][0] || "").trim() === examId) {
+          configSheet.getRange(i + 1, 2).setValue(status);
+          configSheet.getRange(i + 1, 3).setValue(startTime);
+          configSheet.getRange(i + 1, 4).setValue(endTime);
+          found = true;
+          break;
+        }
+      }
+      
+      if (!found) {
+        configSheet.appendRow([examId, status, startTime, endTime]);
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({result: "success"}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({result: "error", error: err.toString()}))
       .setMimeType(ContentService.MimeType.JSON);
@@ -240,10 +273,32 @@ function doGet(e) {
       behaviorSheet.getRange("A1:E1").setFontWeight("bold").setBackground("#f3f4f6");
     }
     
+    // 4. Get Exam Visibility Configs
+    var configSheet = ss.getSheetByName("ExamConfigs");
+    var examConfigs = [];
+    if (configSheet) {
+      var cData = configSheet.getDataRange().getValues();
+      for (var m = 1; m < cData.length; m++) {
+        if (cData[m][0]) {
+          examConfigs.push({
+            examId: String(cData[m][0]).trim(),
+            status: String(cData[m][1] || "Công khai").trim(),
+            startTime: cData[m][2] ? String(cData[m][2]).trim() : "",
+            endTime: cData[m][3] ? String(cData[m][3]).trim() : ""
+          });
+        }
+      }
+    } else {
+      configSheet = ss.insertSheet("ExamConfigs");
+      configSheet.appendRow(["Mã Đề", "Trạng thái", "Thời gian bắt đầu", "Thời gian kết thúc"]);
+      configSheet.getRange("A1:D1").setFontWeight("bold").setBackground("#f3f4f6");
+    }
+    
     var response = {
       submissions: submissions,
       roster: roster,
-      behavior: behavior
+      behavior: behavior,
+      examConfigs: examConfigs
     };
     
     return ContentService.createTextOutput(JSON.stringify(response))

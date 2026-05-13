@@ -7,7 +7,7 @@ import {
   RefreshCw, Search, CheckCircle2, XCircle, GraduationCap, 
   BookOpen, Trophy, PieChart, ArrowRight, Download, Filter, AlertCircle,
   Copy, Activity, Plus, Edit, X, UserPlus, CalendarRange, Upload, 
-  Settings, Trash2, ChevronLeft, ChevronRight, Check
+  Settings, Trash2, ChevronLeft, ChevronRight, Check, Clock, Eye, EyeOff
 } from "lucide-react";
 import React, { useEffect, useState, useMemo } from 'react';
 import { ResponsiveContainer, Cell, PieChart as RechartsPieChart, Pie } from 'recharts';
@@ -37,6 +37,145 @@ interface BehaviorLog {
   status: string;
 }
 
+interface ExamConfig {
+  examId: string;
+  status: string; // 'Công khai' | 'Ẩn' | 'Hẹn giờ'
+  startTime: string;
+  endTime: string;
+}
+
+function ExamConfigItem({ 
+  exam, 
+  config, 
+  onSave, 
+  isSaving 
+}: { 
+  exam: Exam; 
+  config?: ExamConfig; 
+  onSave: (examId: string, status: string, start: string, end: string) => Promise<void>;
+  isSaving: boolean;
+}) {
+  const [status, setStatus] = useState(config?.status || 'Công khai');
+  const [startTime, setStartTime] = useState(config?.startTime || '');
+  const [endTime, setEndTime] = useState(config?.endTime || '');
+
+  useEffect(() => {
+    if (config) {
+      setStatus(config.status);
+      setStartTime(config.startTime);
+      setEndTime(config.endTime);
+    }
+  }, [config]);
+
+  const hasChanges = status !== (config?.status || 'Công khai') || 
+                     startTime !== (config?.startTime || '') || 
+                     endTime !== (config?.endTime || '');
+
+  return (
+    <tr className="hover:bg-slate-800/10 transition-colors group border-b border-slate-800">
+      <td className="px-6 py-5">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-800/60 px-2 py-0.5 rounded border border-slate-700">
+              Lớp {exam.examClass}
+            </span>
+            {config?.status === 'Ẩn' && (
+              <span className="text-[9px] font-bold text-slate-500 flex items-center gap-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-lg">
+                <EyeOff className="h-3 w-3" /> Đang Ẩn
+              </span>
+            )}
+            {config?.status === 'Hẹn giờ' && (
+              <span className="text-[9px] font-bold text-amber-400 flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-lg animate-pulse">
+                <Clock className="h-3 w-3" /> Lên lịch
+              </span>
+            )}
+          </div>
+          <h4 className="text-sm font-black text-white group-hover:text-indigo-300 transition-colors mt-1">{exam.title}</h4>
+          <span className="text-[10px] text-slate-600 font-mono truncate max-w-xs">ID: {exam.id}</span>
+        </div>
+      </td>
+      
+      <td className="px-6 py-5">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 w-fit">
+            {[
+              { val: 'Công khai', label: 'Hiện', icon: Eye, color: 'text-emerald-400' },
+              { val: 'Ẩn', label: 'Ẩn', icon: EyeOff, color: 'text-rose-400' },
+              { val: 'Hẹn giờ', label: 'Hẹn giờ', icon: Clock, color: 'text-amber-400' }
+            ].map(opt => {
+              const Icon = opt.icon;
+              const active = status === opt.val;
+              return (
+                <button
+                  key={opt.val}
+                  type="button"
+                  onClick={() => setStatus(opt.val)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-black transition-all ${
+                    active 
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                      : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  <Icon className={`h-3.5 w-3.5 ${active ? 'text-white' : opt.color}`} />
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {status === 'Hẹn giờ' && (
+            <div className="flex flex-col sm:flex-row items-center gap-3 mt-2 bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl animate-in slide-in-from-top-2 duration-200 shadow-inner">
+              <div className="flex flex-col gap-1 w-full sm:w-auto">
+                <span className="text-[9px] font-black text-slate-500 uppercase">Bắt đầu</span>
+                <input 
+                  type="datetime-local" 
+                  value={startTime} 
+                  onChange={e => setStartTime(e.target.value)}
+                  className="bg-slate-900 border border-slate-800 text-white text-[11px] font-bold rounded-lg px-2.5 py-1.5 outline-none focus:ring-1 ring-indigo-500 font-mono"
+                />
+              </div>
+              <div className="text-slate-700 text-xs font-black shrink-0 mt-4 sm:mt-0">→</div>
+              <div className="flex flex-col gap-1 w-full sm:w-auto">
+                <span className="text-[9px] font-black text-slate-500 uppercase">Kết thúc</span>
+                <input 
+                  type="datetime-local" 
+                  value={endTime} 
+                  onChange={e => setEndTime(e.target.value)}
+                  className="bg-slate-900 border border-slate-800 text-white text-[11px] font-bold rounded-lg px-2.5 py-1.5 outline-none focus:ring-1 ring-indigo-500 font-mono"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </td>
+
+      <td className="px-6 py-5 text-right">
+        <button
+          onClick={() => onSave(exam.id, status, startTime, endTime)}
+          disabled={isSaving || !hasChanges}
+          className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black transition-all ${
+            !hasChanges 
+              ? 'bg-slate-800/40 text-slate-600 cursor-default opacity-50'
+              : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 active:scale-95 cursor-pointer'
+          }`}
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Lưu...
+            </>
+          ) : (
+            <>
+              <Check className="h-3.5 w-3.5" />
+              Cập nhật
+            </>
+          )}
+        </button>
+      </td>
+    </tr>
+  );
+}
+
 export default function TeacherDashboardClient({ initialExams }: { initialExams: Exam[] }) {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [pin, setPin] = useState("");
@@ -45,8 +184,10 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [roster, setRoster] = useState<StudentRoster[]>([]);
   const [behavior, setBehavior] = useState<BehaviorLog[]>([]);
-  const [activeTab, setActiveTab] = useState<'exams' | 'roster' | 'schedule'>('exams');
+  const [examConfigs, setExamConfigs] = useState<ExamConfig[]>([]);
+  const [activeTab, setActiveTab] = useState<'exams' | 'roster' | 'schedule' | 'manage-exams'>('exams');
   const [copiedStudent, setCopiedStudent] = useState<string | null>(null);
+  const [isSavingConfig, setIsSavingConfig] = useState<string | null>(null);
   
   // States cho Lịch học bận & Khung giờ cấu hình
   const [timeSlots, setTimeSlots] = useState<string[]>(['7h-8h30', '9h-10h30', '13h-14h30', '15h-16h30']);
@@ -262,10 +403,46 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
       setSubmissions(json.submissions || []);
       setRoster(json.roster || []);
       setBehavior(json.behavior || []);
+      setExamConfigs(json.examConfigs || []);
     } catch (err: any) {
       setError(`Không thể tải dữ liệu: ${err.message || "Lỗi không xác định"}`);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveExamConfig = async (examId: string, status: string, startTime: string, endTime: string) => {
+    if (!sheetUrl) return;
+    
+    setIsSavingConfig(examId);
+    try {
+      await fetch(sheetUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_exam_config',
+          examId,
+          status,
+          startTime,
+          endTime
+        })
+      });
+      
+      setExamConfigs(prev => {
+        const existing = prev.find(c => c.examId === examId);
+        if (existing) {
+          return prev.map(c => c.examId === examId ? { ...c, status, startTime, endTime } : c);
+        } else {
+          return [...prev, { examId, status, startTime, endTime }];
+        }
+      });
+      
+      alert("Cập nhật cài đặt hiển thị đề thi thành công!");
+    } catch (err: any) {
+      alert("Lỗi lưu cấu hình: " + err.message);
+    } finally {
+      setIsSavingConfig(null);
     }
   };
 
@@ -775,10 +952,66 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
           >
             <CalendarRange className="h-4 w-4" /> Lịch dạy & Lịch bận
           </button>
+          <button 
+            onClick={() => setActiveTab('manage-exams')} 
+            className={`px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'manage-exams' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'}`}
+          >
+            <Settings className="h-4 w-4" /> Cài đặt đề thi
+          </button>
         </div>
 
         {/* Main Content */}
-        {activeTab === 'schedule' ? (
+        {activeTab === 'manage-exams' ? (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            <div className="bg-[#111827] border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+              <div className="px-6 py-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/50">
+                 <div>
+                   <h2 className="text-lg font-bold flex items-center gap-2"><Settings className="h-5 w-5 text-indigo-400"/> Cài đặt Đề Thi & Chế độ Hiển thị</h2>
+                   <p className="text-xs text-slate-500 font-medium mt-1">Cấu hình ẩn/hiện hoặc đặt lịch hẹn tự động mở đề thi cho Học sinh theo dõi.</p>
+                 </div>
+                 <div className="flex items-center gap-2.5 bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 px-3.5 py-1.5 rounded-xl font-black text-xs">
+                   TỔNG SỐ: {initialExams.length} ĐỀ THI
+                 </div>
+              </div>
+
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full border-collapse text-left">
+                  <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-black tracking-widest border-b border-slate-800">
+                    <tr>
+                      <th className="px-6 py-4 min-w-[280px]">Thông tin Đề Thi</th>
+                      <th className="px-6 py-4 min-w-[320px]">Cấu hình Trạng thái</th>
+                      <th className="px-6 py-4 w-36 text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/80">
+                    {initialExams.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="py-20 text-center text-slate-600 text-sm italic font-medium">
+                          Không phát hiện bất kỳ đề thi nào trong hệ thống!
+                        </td>
+                      </tr>
+                    ) : (
+                      initialExams
+                        .filter(ex => ex.title.toLowerCase().includes(searchTerm.toLowerCase()))
+                        .map(exam => {
+                          const config = examConfigs.find(c => c.examId === exam.id);
+                          return (
+                            <ExamConfigItem
+                              key={exam.id}
+                              exam={exam}
+                              config={config}
+                              onSave={handleSaveExamConfig}
+                              isSaving={isSavingConfig === exam.id}
+                            />
+                          );
+                        })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'schedule' ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-300">
             
             {/* TIMETABLE (WEEKLY SCHEDULE) */}
