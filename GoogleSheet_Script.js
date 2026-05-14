@@ -252,8 +252,8 @@ function doPost(e) {
       var dataValues = configSheet.getDataRange().getValues();
       var examIds = data.examIds || [];
       var status = String(data.status || "Ẩn").trim();
-      var startTime = "";
-      var endTime = "";
+      var startTime = String(data.startTime || "").trim();
+      var endTime = String(data.endTime || "").trim();
       
       var rowsToAdd = [];
       var existingMap = {};
