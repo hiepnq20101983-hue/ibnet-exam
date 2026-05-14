@@ -7,7 +7,7 @@ import {
   RefreshCw, Search, CheckCircle2, XCircle, GraduationCap, 
   BookOpen, Trophy, PieChart, ArrowRight, Download, Filter, AlertCircle,
   Copy, Activity, Plus, Edit, X, UserPlus, CalendarRange, Upload, 
-  Settings, Trash2, ChevronLeft, ChevronRight, Check, Clock, Eye, EyeOff
+  Settings, Trash2, ChevronLeft, ChevronRight, Check, Clock, Eye, EyeOff, CheckSquare
 } from "lucide-react";
 import React, { useEffect, useState, useMemo } from 'react';
 import { ResponsiveContainer, Cell, PieChart as RechartsPieChart, Pie } from 'recharts';
@@ -218,6 +218,9 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
   const [activeTab, setActiveTab] = useState<'exams' | 'roster' | 'schedule' | 'manage-exams'>('exams');
   const [selectedExamIds, setSelectedExamIds] = useState<string[]>([]);
   const [isBatchSavingConfig, setIsBatchSavingConfig] = useState(false);
+  const [batchStatus, setBatchStatus] = useState<string>('Công khai');
+  const [batchStartTime, setBatchStartTime] = useState<string>('');
+  const [batchEndTime, setBatchEndTime] = useState<string>('');
   const [copiedStudent, setCopiedStudent] = useState<string | null>(null);
   const [isSavingConfig, setIsSavingConfig] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState<'all' | 'google-drive' | 'github'>('all');
@@ -568,7 +571,7 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
     }
   };
 
-  const handleBatchSaveExamConfig = async (status: 'Ẩn' | 'Công khai') => {
+  const handleBatchSaveExamConfig = async (status: string, startTime = "", endTime = "") => {
     if (!sheetUrl || selectedExamIds.length === 0) return;
     
     setIsBatchSavingConfig(true);
@@ -580,7 +583,9 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
         body: JSON.stringify({
           action: 'update_exam_config_batch',
           examIds: selectedExamIds,
-          status: status
+          status: status,
+          startTime: startTime,
+          endTime: endTime
         })
       });
       
@@ -588,10 +593,13 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
         const next = [...prev];
         selectedExamIds.forEach(id => {
           const idx = next.findIndex(c => c.examId === id);
+          const cleanStart = status === 'Hẹn giờ' ? startTime : "";
+          const cleanEnd = status === 'Hẹn giờ' ? endTime : "";
+          
           if (idx !== -1) {
-            next[idx] = { ...next[idx], status, startTime: "", endTime: "" };
+            next[idx] = { ...next[idx], status, startTime: cleanStart, endTime: cleanEnd };
           } else {
-            next.push({ examId: id, status, startTime: "", endTime: "" });
+            next.push({ examId: id, status, startTime: cleanStart, endTime: cleanEnd });
           }
         });
         return next;
@@ -1253,28 +1261,72 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
                  </div>
 
                  {selectedExamIds.length > 0 ? (
-                   <div className="flex items-center gap-3 animate-in slide-in-from-right-2 duration-200 flex-wrap">
-                     <span className="text-xs text-indigo-300 font-bold font-mono bg-indigo-500/10 px-3 py-1.5 rounded-xl border border-indigo-500/20">
-                       Đã chọn: {selectedExamIds.length}
-                     </span>
-                     <button
-                       onClick={() => handleBatchSaveExamConfig('Ẩn')}
-                       disabled={isBatchSavingConfig}
-                       className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-white bg-rose-600 hover:bg-rose-500 shadow-lg active:scale-95 transition-all disabled:opacity-50 cursor-pointer shadow-rose-600/20"
-                     >
-                       {isBatchSavingConfig ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <EyeOff className="h-3.5 w-3.5"/>}
-                       Ẩn hàng loạt
-                     </button>
-                     <button
-                       onClick={() => handleBatchSaveExamConfig('Công khai')}
-                       disabled={isBatchSavingConfig}
-                       className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg active:scale-95 transition-all disabled:opacity-50 cursor-pointer shadow-emerald-600/20"
-                     >
-                       {isBatchSavingConfig ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <Eye className="h-3.5 w-3.5"/>}
-                       Hiện hàng loạt
-                     </button>
-                   </div>
-                 ) : (
+                    <div className="flex items-center gap-3 flex-wrap p-3 bg-slate-900/60 border border-slate-800/80 rounded-2xl animate-in slide-in-from-right-2 duration-300">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-indigo-300 font-black font-mono bg-indigo-500/10 px-3 py-2 rounded-xl border border-indigo-500/20 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                          ĐÃ CHỌN: {selectedExamIds.length}
+                        </span>
+                      </div>
+                      
+                      <div className="h-5 w-px bg-slate-800 hidden sm:block"></div>
+
+                      <div className="flex items-center gap-2.5 bg-slate-950/80 p-1.5 rounded-xl border border-slate-800">
+                        <select 
+                          value={batchStatus}
+                          onChange={(e) => setBatchStatus(e.target.value)}
+                          className="bg-transparent border-none text-white text-xs font-bold outline-none px-2 cursor-pointer"
+                        >
+                          <option value="Công khai" className="bg-slate-900 text-white">Công khai</option>
+                          <option value="Ẩn" className="bg-slate-900 text-white">Ẩn đề</option>
+                          <option value="Hẹn giờ" className="bg-slate-900 text-white">Hẹn giờ mở</option>
+                        </select>
+                      </div>
+
+                      {batchStatus === 'Hẹn giờ' && (
+                        <div className="flex items-center gap-2 animate-in zoom-in-95 duration-200 flex-wrap">
+                          <input
+                            type="datetime-local"
+                            value={batchStartTime}
+                            onChange={(e) => setBatchStartTime(e.target.value)}
+                            className="bg-slate-950 border border-slate-800 text-white text-[11px] font-bold rounded-xl px-3 py-2 outline-none focus:ring-1 ring-indigo-500 font-mono"
+                          />
+                          <span className="text-slate-600 text-xs font-bold">đến</span>
+                          <input
+                            type="datetime-local"
+                            value={batchEndTime}
+                            onChange={(e) => setBatchEndTime(e.target.value)}
+                            className="bg-slate-950 border border-slate-800 text-white text-[11px] font-bold rounded-xl px-3 py-2 outline-none focus:ring-1 ring-indigo-500 font-mono"
+                          />
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => handleBatchSaveExamConfig(batchStatus, batchStartTime, batchEndTime)}
+                        disabled={isBatchSavingConfig || (batchStatus === 'Hẹn giờ' && (!batchStartTime || !batchEndTime))}
+                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-lg active:scale-95 transition-all disabled:opacity-40 cursor-pointer shadow-indigo-600/20 select-none"
+                      >
+                        {isBatchSavingConfig ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin"/>
+                            Đang lưu...
+                          </>
+                        ) : (
+                          <>
+                            <CheckSquare className="h-3.5 w-3.5"/>
+                            Cập nhật hàng loạt
+                          </>
+                        )}
+                      </button>
+                      
+                      <button 
+                        onClick={() => setSelectedExamIds([])}
+                        className="text-[10px] text-slate-500 hover:text-rose-400 font-bold underline px-2 transition-colors cursor-pointer"
+                      >
+                        Bỏ chọn
+                      </button>
+                    </div>
+                  ) : (
                    <div className="flex items-center gap-2.5 bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 px-3.5 py-1.5 rounded-xl font-black text-xs">
                      TỔNG SỐ: {filteredExamsToManage.length} ĐỀ THI
                    </div>
