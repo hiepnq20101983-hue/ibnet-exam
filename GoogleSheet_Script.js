@@ -377,17 +377,35 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
     
+    var examList = [];
+    var debugLog = [];
+    
     try {
       var folder = DriveApp.getFolderById(folderId);
-      var examList = [];
+      debugLog.push("Đã kết nối Thư mục gốc: \"" + folder.getName() + "\"");
       
       function scanFolder(f, currentPath) {
+        var folderName = f.getName();
+        debugLog.push("Quét thư mục: /" + currentPath + " (" + folderName + ")");
+        
         // Get files in this folder
         var files = f.getFiles();
+        var folderFileCount = 0;
+        var sampleFiles = [];
+        
         while (files.hasNext()) {
           var file = files.next();
           var name = file.getName();
-          if (name.toLowerCase().endsWith(".html")) {
+          var mime = file.getMimeType();
+          folderFileCount++;
+          
+          if (sampleFiles.length < 3) {
+            sampleFiles.push(name + " [" + mime + "]");
+          }
+          
+          var isHtml = name.toLowerCase().endsWith(".html") || name.toLowerCase().endsWith(".htm") || mime === "text/html";
+          
+          if (isHtml) {
             try {
               // Quick text read for metadata
               var text = file.getBlob().getDataAsString().substring(0, 20000);
@@ -396,12 +414,11 @@ function doGet(e) {
               var title = titleMatch ? titleMatch[1].trim() : name.replace("_conv.html", "").replace(/_/g, " ");
               
               var durationMatch = text.match(/class=["']exam-meta["'][^>]*>([\s\S]*?)<\/div>/i) || text.match(/class=["']exam-meta["'][^>]*>([\s\S]*?)<\/span>/i);
-              var duration = durationMatch ? durationMatch[1].replace(/<\/?[^>]+(>|$)/g, "").trim() : "Không rõ thời gian";
+              var duration = durationMatch ? durationMatch[1].replace(/<\/?[^>]+(>|$)/g, "").trim() : "N/A";
               
               var summaryMatch = text.match(/class=["']score-summary["'][^>]*>([\s\S]*?)<\/div>/i);
               var summary = summaryMatch ? summaryMatch[1].replace(/<\/?[^>]+(>|$)/g, "").substring(0, 150) + "..." : "";
               
-              // Categorization from path
               var pathSegments = currentPath.split('/').filter(function(x) { return x.length > 0; });
               var examClass = 'Chung';
               var examTopic = 'Tổng hợp';
@@ -428,13 +445,12 @@ function doGet(e) {
                 examTopic: examTopic
               });
             } catch (fileErr) {
-              // Secure fallback: skip unreadable file without crashing the whole directory traversal
               examList.push({
                 id: file.getId(),
                 filename: name,
                 title: name.replace("_conv.html", ""),
                 duration: "Lỗi đọc",
-                summary: "Không thể giải mã metadata: " + fileErr.toString(),
+                summary: "Không giải mã được HTML: " + fileErr.toString(),
                 examClass: currentPath.split('/')[0] || "Drive",
                 examTopic: "Lỗi đọc file"
               });
@@ -442,21 +458,53 @@ function doGet(e) {
           }
         }
         
+        debugLog.push("-> Tìm thấy " + folderFileCount + " tệp tin trong " + folderName + ". Ví dụ: " + (sampleFiles.length > 0 ? sampleFiles.join(", ") : "(Trống)"));
+        
         // Get subfolders
-        var subFolders = f.getFolders();
-        while (subFolders.hasNext()) {
-          var sub = subFolders.next();
-          scanFolder(sub, (currentPath ? currentPath + "/" : "") + sub.getName());
+        try {
+          var subFolders = f.getFolders();
+          while (subFolders.hasNext()) {
+            var sub = subFolders.next();
+            try {
+              scanFolder(sub, (currentPath ? currentPath + "/" : "") + sub.getName());
+            } catch (innerErr) {
+              debugLog.push("Lỗi bỏ qua thư mục con \"" + sub.getName() + "\": " + innerErr.toString());
+            }
+          }
+        } catch (subErr) {
+          debugLog.push("Không thể duyệt thư mục con của \"" + folderName + "\": " + subErr.toString());
         }
       }
       
       scanFolder(folder, "");
       
+      // If NO exams were found, append a diagnostic helper exam that uses the UI to report what happened
+      if (examList.length === 0) {
+        examList.push({
+          id: "DIAGNOSTIC_SYSTEM_REPORT",
+          filename: "BÁO_CÁO_QUÉT_LỖI.html",
+          title: "🔍 Lỗi: Đã Quét Thư Mục Nhưng Không Tìm Thấy File .HTML Nào!",
+          duration: "N/A",
+          summary: "BÁO CÁO TRÌNH QUÉT DỮ LIỆU: " + debugLog.join(" || "),
+          examClass: "HỆ THỐNG",
+          examTopic: "Báo cáo sự cố"
+        });
+      }
+      
       return ContentService.createTextOutput(JSON.stringify(examList))
         .setMimeType(ContentService.MimeType.JSON);
+        
     } catch (err) {
-      return ContentService.createTextOutput(JSON.stringify({result: "error", error: err.toString()}))
-        .setMimeType(ContentService.MimeType.JSON);
+      return ContentService.createTextOutput(JSON.stringify([{
+        id: "DIAGNOSTIC_CRITICAL_CRASH",
+        filename: "CRITICAL_CRASH.html",
+        title: "🚨 Lỗi Nghiêm Trọng Khi Đọc Thư Mục Google Drive!",
+        duration: "N/A",
+        summary: "Apps Script báo lỗi: " + err.toString() + ". Vui lòng kiểm tra lại GOOGLE_DRIVE_FOLDER_ID trong Vercel và đảm bảo bạn có quyền truy cập!",
+        examClass: "HỆ THỐNG",
+        examTopic: "Lỗi kết nối"
+      }]))
+      .setMimeType(ContentService.MimeType.JSON);
     }
   }
 
