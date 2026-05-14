@@ -3,7 +3,7 @@
  * Copy all of this code and paste into Extensions -> Apps Script in your Google Sheet.
  */
 
-var SPREADSHEET_ID = ""; // ĐIỀN ID TRANG TÍNH CỦA BẠN VÀO ĐÂY NẾU GẶP LỖI "TỆP KHÔNG TỒN TẠI". BỎ TRỐNG NẾU SỬ DỤNG MẶC ĐỊNH TRONG TRANG TÍNH.
+var SPREADSHEET_ID = "1tY-CDPltVyrv4g3-RuT-YLt3wCuktjmPyvc-BtX3-pA";
 
 function getSpreadsheet() {
   if (typeof SPREADSHEET_ID !== 'undefined' && SPREADSHEET_ID && SPREADSHEET_ID.trim() !== "") {

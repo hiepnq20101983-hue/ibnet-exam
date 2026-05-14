@@ -447,12 +447,13 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
               message: 'Cảnh báo: Google Script đã phản hồi nhưng báo lỗi nội bộ!',
               details: `Thông điệp lỗi từ Google: "${data.error || data.message}"\n\nHướng xử lý: Copy ID trang tính (dãy chữ dài trên thanh địa chỉ trang tính) và điền vào SPREADSHEET_ID ở dòng 5 trong script, sau đó Deploy bản mới!`
             });
-          } else {
             setTestResult({
               success: true,
               message: '🎉 KẾT NỐI THÀNH CÔNG RỰC RỠ!',
-              details: `Hệ thống đã đọc trực tiếp được:\n- ${data.submissions?.length || 0} lượt nộp bài\n- ${data.roster?.length || 0} học sinh đã lưu\n- ${data.behavior?.length || 0} nhật ký ý thức\n- ${data.examConfigs?.length || 0} cấu hình đề thi\n\nLink này hoạt động 100%, bạn có thể yên tâm cấu hình vào Vercel!`
+              details: `Hệ thống đã đọc trực tiếp được:\n- ${data.submissions?.length || 0} lượt nộp bài\n- ${data.roster?.length || 0} học sinh đã lưu\n- ${data.behavior?.length || 0} nhật ký ý thức\n- ${data.examConfigs?.length || 0} cấu hình đề thi\n\nLink này hoạt động 100%! Đang tự động cập nhật bảng dữ liệu cho bạn...`
             });
+            // Automatically trigger dashboard rehydration with this live connection
+            fetchData();
           }
         } catch (parseErr) {
           if (text.includes("Exam API Is Running Successfully")) {
@@ -496,7 +497,9 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${sheetUrl}?action=get_data`, { cache: 'no-store' });
+      // Add explicit cache buster timestamp to bypass aggressive browser caching of previous CORS errors
+      const finalUrl = `${sheetUrl}${sheetUrl.includes('?') ? '&' : '?'}action=get_data&_cb=${Date.now()}`;
+      const res = await fetch(finalUrl, { cache: 'no-store' });
       if (!res.ok) throw new Error("Network error fetching sheet data");
       const json = await res.json();
       setSubmissions(json.submissions || []);

@@ -46,8 +46,9 @@ export async function getExams(): Promise<Exam[]> {
   // 1. Dynamic Loading from Google Drive
   if (driveFolderId && sheetUrl) {
     try {
-      const res = await fetch(`${sheetUrl}?action=get_drive_exams&folderId=${driveFolderId}`, {
-        next: { revalidate: 60 } // Cache list for 60 seconds
+      const targetUrl = `${sheetUrl}${sheetUrl.includes('?') ? '&' : '?'}action=get_drive_exams&folderId=${driveFolderId}&_cb=${Date.now()}`;
+      const res = await fetch(targetUrl, {
+        cache: 'no-store'
       });
       
       if (res.ok) {
