@@ -3,22 +3,39 @@
  * Copy all of this code and paste into Extensions -> Apps Script in your Google Sheet.
  */
 
+// 1. TỰ ĐỘNG TẠO MENU TRONG GOOGLE SHEET KHI MỞ TRANG TÍNH
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('🔥 CẤU HÌNH HỆ THỐNG')
+    .addItem('🔑 KÍCH HOẠT QUYỀN GOOGLE DRIVE (BẮT BUỘC)', 'setup')
+    .addToUi();
+}
+
+// 2. CHẠY HÀM NÀY ĐỂ HIỂN THỊ BẢNG CẤP QUYỀN CHÍNH THỨC CỦA GOOGLE
+function setup() {
+  try {
+    // Ép buộc gọi DriveApp để kích hoạt hiển thị pop-up cấp quyền
+    var root = DriveApp.getRootFolder();
+    var testName = root.getName();
+    
+    var ui = SpreadsheetApp.getUi();
+    ui.alert(
+      "🎉 KÍCH HOẠT THÀNH CÔNG!", 
+      "Chúc mừng! Quyền truy cập Google Drive đã được kích hoạt và liên kết thành công.\n\n👉 BƯỚC TIẾP THEO: Bạn hãy quay lại Apps Script, chọn Deploy (Triển khai) -> Quản lý bản triển khai -> Bấm biểu tượng Bút Chì -> Chọn Version 'New Version' và bấm Deploy là xong!", 
+      ui.ButtonSet.OK
+    );
+  } catch (e) {
+    var ui = SpreadsheetApp.getUi();
+    ui.alert("Lỗi cấp quyền: " + e.toString());
+  }
+}
+
 function getSpreadsheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) {
     throw new Error("Lỗi bảo mật Google: Script không thể tự nhận dạng trang tính. Hãy chắc chắn bạn mở Script bằng cách vào Tiện ích mở rộng -> Apps Script từ bên trong Google Sheet.");
   }
   return ss;
-}
-
-// CHẠY HÀM NÀY MỘT LẦN DUY NHẤT ĐỂ CẤP QUYỀN CHO GOOGLE DRIVE!
-function setup() {
-  try {
-    DriveApp.getFiles().hasNext();
-    Logger.log("Đã cấp quyền Google Drive thành công!");
-  } catch (e) {
-    Logger.log("Chưa được cấp quyền: " + e.message);
-  }
 }
 
 function doPost(e) {
