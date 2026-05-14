@@ -85,9 +85,12 @@ export async function getExams(): Promise<Exam[]> {
   }
 
   // 2. Local System Scanning (Github/Assets)
+  const rawDisableGit = process.env.DISABLE_GIT_EXAMS || process.env.NEXT_PUBLIC_DISABLE_GIT_EXAMS;
+  const disableGitExams = rawDisableGit ? rawDisableGit.trim().replace(/^["']|["']$/g, '').toLowerCase() === 'true' : false;
+  
   const examsDir = path.join(process.cwd(), 'public', 'assets', 'exams');
   
-  if (fs.existsSync(examsDir)) {
+  if (!disableGitExams && fs.existsSync(examsDir)) {
     // Scan all files recursively to get relative paths
     const relativePaths = getAllFiles(examsDir);
     
