@@ -447,6 +447,7 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
               message: 'Cảnh báo: Google Script đã phản hồi nhưng báo lỗi nội bộ!',
               details: `Thông điệp lỗi từ Google: "${data.error || data.message}"\n\nHướng xử lý: Copy ID trang tính (dãy chữ dài trên thanh địa chỉ trang tính) và điền vào SPREADSHEET_ID ở dòng 5 trong script, sau đó Deploy bản mới!`
             });
+          } else {
             setTestResult({
               success: true,
               message: '🎉 KẾT NỐI THÀNH CÔNG RỰC RỠ!',
