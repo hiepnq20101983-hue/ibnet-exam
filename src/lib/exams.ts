@@ -47,19 +47,30 @@ export async function getExams(): Promise<Exam[]> {
       });
       
       if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          // Return the pre-parsed metadata from Apps Script!
-          // Inject a unique prefix 'drive-' into the ID to ensure infallible client-side routing
-          driveExams = data.map(item => ({
-            id: `drive-${item.id}`,
-            filename: item.filename,
-            title: item.title,
-            duration: item.duration,
-            summary: item.summary,
-            examClass: item.examClass,
-            examTopic: item.examTopic
-          }));
+        const responseText = await res.text();
+        try {
+          const data = JSON.parse(responseText);
+          if (Array.isArray(data)) {
+            // Return the pre-parsed metadata from Apps Script!
+            // Inject a unique prefix 'drive-' into the ID to ensure infallible client-side routing
+            driveExams = data.map(item => ({
+              id: `drive-${item.id}`,
+              filename: item.filename,
+              title: item.title,
+              duration: item.duration,
+              summary: item.summary,
+              examClass: item.examClass,
+              examTopic: item.examTopic
+            }));
+          } else if (data && data.result === 'error') {
+            console.error("Google Apps Script returned error:", data.message || data.error);
+          }
+        } catch (parseErr) {
+          if (responseText.includes("Exam API Is Running Successfully")) {
+            console.error("⚠️ Cảnh báo: Google Apps Script chưa được cập nhật hoặc Deploy bản mới nhất trên Google Drive (Script hiện trả về thông báo mặc định thay vì dữ liệu JSON).");
+          } else {
+            console.error("⚠️ Lỗi phân tích dữ liệu Google Drive. Kết quả nhận được từ Apps Script:", responseText);
+          }
         }
       }
     } catch (err) {
