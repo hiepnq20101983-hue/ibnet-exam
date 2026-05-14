@@ -248,6 +248,7 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [onlyRosterInStats, setOnlyRosterInStats] = useState(true);
   
   const [selectedClass, setSelectedClass] = useState("Tất cả");
   const [selectedExam, setSelectedExam] = useState<string>("all");
@@ -654,9 +655,21 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
     return submissions.filter(sub => {
       const matchesClass = selectedClass === "Tất cả" || sub.className === selectedClass;
       const matchesExam = selectedExam === "all" || sub.examId === selectedExam;
-      return matchesClass && matchesExam;
+      
+      if (!matchesClass || !matchesExam) return false;
+      
+      // Optional logic: exclude free students not present in Roster
+      if (onlyRosterInStats) {
+        const inRoster = roster.some(r => 
+          String(r.className).trim().toLowerCase() === String(sub.className).trim().toLowerCase() &&
+          String(r.studentName).trim().toLowerCase() === String(sub.studentName).trim().toLowerCase()
+        );
+        return inRoster;
+      }
+      
+      return true;
     });
-  }, [submissions, selectedClass, selectedExam]);
+  }, [submissions, selectedClass, selectedExam, onlyRosterInStats, roster]);
 
   // Create combined view mapping every roster student to a submission
   const studentAnalysis = useMemo(() => {
@@ -1195,6 +1208,27 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
                     className="w-full bg-slate-950 border border-slate-800 text-white text-sm rounded-xl pl-9 pr-3 py-3 outline-none focus:ring-1 ring-indigo-500"
                   />
                </div>
+            </div>
+            
+            <div className="w-full flex items-center justify-between mt-4 pt-4 border-t border-slate-800/60 flex-wrap gap-3">
+               <label className="flex items-center gap-2.5 cursor-pointer group select-none">
+                 <div className="relative">
+                   <input 
+                     type="checkbox"
+                     checked={onlyRosterInStats}
+                     onChange={(e) => setOnlyRosterInStats(e.target.checked)}
+                     className="sr-only peer"
+                   />
+                   <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 relative transition-colors"></div>
+                 </div>
+                 <span className="text-[11px] font-black tracking-wide uppercase text-slate-400 group-hover:text-slate-200 transition-colors flex items-center gap-1.5">
+                   <Users className="h-3.5 w-3.5 text-indigo-400"/>
+                   Chỉ thống kê học sinh trong Danh sách
+                 </span>
+               </label>
+               <span className="text-[10px] font-bold bg-slate-900 text-indigo-400 border border-indigo-500/10 px-2.5 py-1 rounded-lg italic">
+                 {onlyRosterInStats ? "🔒 Đang lọc bỏ học sinh tự do" : "🌍 Đang đếm cả học sinh tự do"}
+               </span>
             </div>
           </div>
         </div>
