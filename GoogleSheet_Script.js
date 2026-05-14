@@ -18,15 +18,28 @@ function setup() {
     var root = DriveApp.getRootFolder();
     var testName = root.getName();
     
+    // Lấy link Web App thực tế của Script để người dùng copy
+    var webAppUrl = "Không thể lấy link tự động (hãy copy trong mục Deploy)";
+    try {
+      webAppUrl = ScriptApp.getService().getUrl();
+    } catch (urlErr) {
+      // Bỏ qua nếu chưa được kích hoạt service
+    }
+    
     var ui = SpreadsheetApp.getUi();
     ui.alert(
-      "🎉 KÍCH HOẠT THÀNH CÔNG!", 
-      "Chúc mừng! Quyền truy cập Google Drive đã được kích hoạt và liên kết thành công.\n\n👉 BƯỚC TIẾP THEO: Bạn hãy quay lại Apps Script, chọn Deploy (Triển khai) -> Quản lý bản triển khai -> Bấm biểu tượng Bút Chì -> Chọn Version 'New Version' và bấm Deploy là xong!", 
+      "🎉 THÀNH CÔNG RỰC RỠ!", 
+      "Quyền truy cập Google Drive đã kích hoạt THÀNH CÔNG!\n\n" +
+      "👉 ĐÂY LÀ LINK WEB APP MỚI NHẤT CỦA BẠN:\n" + webAppUrl + "\n\n" +
+      "👉 HƯỚNG DẪN QUAN TRỌNG:\n" +
+      "1. Hãy COPY đường link ở trên.\n" +
+      "2. Vào Vercel -> Settings -> Environment Variables -> Sửa biến 'NEXT_PUBLIC_GOOGLE_SHEET_URL' -> DÁN đè link này vào và nhấn Save!\n" +
+      "3. Redeploy lại Vercel để áp dụng 100%!", 
       ui.ButtonSet.OK
     );
   } catch (e) {
     var ui = SpreadsheetApp.getUi();
-    ui.alert("Lỗi cấp quyền: " + e.toString());
+    ui.alert("Lỗi kích hoạt: " + e.toString());
   }
 }
 
