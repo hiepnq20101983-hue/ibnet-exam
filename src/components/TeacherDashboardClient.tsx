@@ -115,6 +115,11 @@ function ExamConfigItem({
           </div>
           <h4 className="text-sm font-black text-white group-hover:text-indigo-300 transition-colors mt-1">{exam.title}</h4>
           <span className="text-[10px] text-slate-600 font-mono truncate max-w-xs">ID: {exam.id}</span>
+          {exam.summary && (
+            <div className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg mt-2 font-medium max-w-md whitespace-pre-line shadow-inner">
+              {exam.summary}
+            </div>
+          )}
         </div>
       </td>
       
