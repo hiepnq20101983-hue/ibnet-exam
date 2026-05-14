@@ -68,7 +68,8 @@ export default function DashboardClient({ initialExams }: { initialExams: Exam[]
       })
       .catch(err => console.error("Lỗi đồng bộ danh sách đề thi:", err));
 
-    const sheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+    const rawSheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+    const sheetUrl = rawSheetUrl ? rawSheetUrl.trim().replace(/^["']|["']$/g, '') : '';
     if (sheetUrl) {
       fetch(`${sheetUrl}?action=get_data`, { cache: 'no-store' })
         .then(res => res.json())

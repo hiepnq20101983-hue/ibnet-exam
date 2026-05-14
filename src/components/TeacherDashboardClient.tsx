@@ -394,7 +394,8 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
     setTimeout(() => setCopiedStudent(null), 2000);
   };
   
-  const sheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+  const rawSheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+  const sheetUrl = rawSheetUrl ? rawSheetUrl.trim().replace(/^["']|["']$/g, '') : '';
   const requiredPin = process.env.NEXT_PUBLIC_TEACHER_PIN || "123456";
 
   // Check authorization on load
@@ -449,7 +450,7 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
         setIsExamsSyncing(false);
       }
     } catch (err: any) {
-      setError(`Không thể tải dữ liệu: ${err.message || "Lỗi không xác định"}`);
+      setError(`Không thể tải dữ liệu: ${err.message || "Lỗi kết nối (Failed to fetch)"}. Link API được cấu hình: [${sheetUrl || 'Chưa cấu hình'}]`);
     } finally {
       setIsLoading(false);
     }

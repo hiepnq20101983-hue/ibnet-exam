@@ -48,7 +48,8 @@ function ParentPortalContent({ initialExams }: { initialExams: Exam[] }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const sheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+  const rawSheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+  const sheetUrl = rawSheetUrl ? rawSheetUrl.trim().replace(/^["']|["']$/g, '') : '';
 
   useEffect(() => {
     const fetchData = async () => {

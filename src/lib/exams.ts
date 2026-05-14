@@ -34,8 +34,11 @@ function getAllFiles(dirPath: string, arrayOfFiles: string[] = [], rootPath?: st
 }
 
 export async function getExams(): Promise<Exam[]> {
-  const driveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-  const sheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+  const rawDriveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+  const driveFolderId = rawDriveFolderId ? rawDriveFolderId.trim().replace(/^["']|["']$/g, '') : '';
+  
+  const rawSheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+  const sheetUrl = rawSheetUrl ? rawSheetUrl.trim().replace(/^["']|["']$/g, '') : '';
 
   let driveExams: Exam[] = [];
   let localExams: Exam[] = [];

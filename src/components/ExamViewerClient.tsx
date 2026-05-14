@@ -26,7 +26,8 @@ export default function ExamViewerClient({ examId }: { examId: string }) {
   }, [pathname]);
 
   useEffect(() => {
-    const sheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+    const rawSheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+    const sheetUrl = rawSheetUrl ? rawSheetUrl.trim().replace(/^["']|["']$/g, '') : '';
     if (!sheetUrl) {
       setIsCheckingLock(false);
       return;
@@ -134,7 +135,8 @@ export default function ExamViewerClient({ examId }: { examId: string }) {
       localStorage.setItem('exam_history', JSON.stringify(history));
 
       // Automatically sync submission to Google Sheet if configured
-      const sheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+      const rawSheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+      const sheetUrl = rawSheetUrl ? rawSheetUrl.trim().replace(/^["']|["']$/g, '') : '';
       if (sheetUrl && student) {
         try {
           await fetch(sheetUrl, {
