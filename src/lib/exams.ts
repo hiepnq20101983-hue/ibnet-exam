@@ -11,6 +11,7 @@ export interface Exam {
   examClass: string;
   examTopic: string;
   questionsCount?: number;
+  source?: 'google-drive' | 'github';
 }
 
 // Helper for recursive read
@@ -18,13 +19,13 @@ function getAllFiles(dirPath: string, arrayOfFiles: string[] = [], rootPath?: st
   const files = fs.readdirSync(dirPath);
   const base = rootPath || dirPath;
 
-  files.forEach(function(file) {
-    const fullPath = path.join(dirPath, file);
-    if (fs.statSync(fullPath).isDirectory()) {
-      arrayOfFiles = getAllFiles(fullPath, arrayOfFiles, base);
+  files.forEach(file => {
+    if (fs.statSync(path.join(dirPath, file)).isDirectory()) {
+      arrayOfFiles = getAllFiles(path.join(dirPath, file), arrayOfFiles, base);
     } else {
+      // Only capture .html files
       if (file.endsWith('.html')) {
-        arrayOfFiles.push(path.relative(base, fullPath));
+        arrayOfFiles.push(path.relative(base, path.join(dirPath, file)));
       }
     }
   });
@@ -60,7 +61,8 @@ export async function getExams(): Promise<Exam[]> {
               duration: item.duration,
               summary: item.summary,
               examClass: item.examClass,
-              examTopic: item.examTopic
+              examTopic: item.examTopic,
+              source: 'google-drive'
             }));
           } else if (data && data.result === 'error') {
             console.error("Google Apps Script returned error:", data.message || data.error);
@@ -133,6 +135,7 @@ export async function getExams(): Promise<Exam[]> {
         examTopic: examTopic,
         duration: duration.replace('Thời gian: ', ''),
         summary: summary.substring(0, 150) + '...',
+        source: 'github'
       };
     });
   }

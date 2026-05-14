@@ -91,6 +91,17 @@ function ExamConfigItem({
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-800/60 px-2 py-0.5 rounded border border-slate-700">
               Lớp {exam.examClass}
             </span>
+            {exam.source === 'google-drive' ? (
+              <span className="text-[10px] font-black text-blue-400 uppercase tracking-wider bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 flex items-center gap-1">
+                <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Google Drive
+              </span>
+            ) : (
+              <span className="text-[10px] font-black text-purple-400 uppercase tracking-wider bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20 flex items-center gap-1">
+                <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+                Github
+              </span>
+            )}
             {config?.status === 'Ẩn' && (
               <span className="text-[9px] font-bold text-slate-500 flex items-center gap-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-lg">
                 <EyeOff className="h-3 w-3" /> Đang Ẩn
@@ -202,6 +213,7 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
   const [isBatchSavingConfig, setIsBatchSavingConfig] = useState(false);
   const [copiedStudent, setCopiedStudent] = useState<string | null>(null);
   const [isSavingConfig, setIsSavingConfig] = useState<string | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'google-drive' | 'github'>('all');
   
   // States cho Lịch học bận & Khung giờ cấu hình
   const [timeSlots, setTimeSlots] = useState<string[]>(['7h-8h30', '9h-10h30', '13h-14h30', '15h-16h30']);
@@ -503,8 +515,12 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
   }, [isAuthorized, sheetUrl]);
 
   const filteredExamsToManage = useMemo(() => {
-    return initialExams.filter(ex => ex.title.toLowerCase().includes(searchTerm.toLowerCase()));
-  }, [initialExams, searchTerm]);
+    return initialExams.filter(ex => {
+      const matchesSearch = ex.title.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSource = sourceFilter === 'all' || ex.source === sourceFilter;
+      return matchesSearch && matchesSource;
+    });
+  }, [initialExams, searchTerm, sourceFilter]);
 
   // Dynamic options
   const availableClasses = useMemo(() => {
@@ -1023,6 +1039,29 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
                    <p className="text-xs text-slate-500 font-medium mt-1">Cấu hình ẩn/hiện hoặc đặt lịch hẹn tự động mở đề thi cho Học sinh theo dõi.</p>
                  </div>
                  
+                 <div className="flex items-center bg-slate-950 border border-slate-800 p-1 rounded-xl gap-1 flex-wrap">
+                   <button
+                     onClick={() => { setSourceFilter('all'); setSelectedExamIds([]); }}
+                     className={`px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider font-black transition-all flex items-center gap-1 ${sourceFilter === 'all' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:text-slate-300'}`}
+                   >
+                     Tất cả
+                   </button>
+                   <button
+                     onClick={() => { setSourceFilter('google-drive'); setSelectedExamIds([]); }}
+                     className={`px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider font-black transition-all flex items-center gap-1 ${sourceFilter === 'google-drive' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-500 hover:text-slate-300'}`}
+                   >
+                     <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                     Google Drive
+                   </button>
+                   <button
+                     onClick={() => { setSourceFilter('github'); setSelectedExamIds([]); }}
+                     className={`px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider font-black transition-all flex items-center gap-1 ${sourceFilter === 'github' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20' : 'text-slate-500 hover:text-slate-300'}`}
+                   >
+                     <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+                     Github
+                   </button>
+                 </div>
+
                  {selectedExamIds.length > 0 ? (
                    <div className="flex items-center gap-3 animate-in slide-in-from-right-2 duration-200 flex-wrap">
                      <span className="text-xs text-indigo-300 font-bold font-mono bg-indigo-500/10 px-3 py-1.5 rounded-xl border border-indigo-500/20">
@@ -1047,7 +1086,7 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
                    </div>
                  ) : (
                    <div className="flex items-center gap-2.5 bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 px-3.5 py-1.5 rounded-xl font-black text-xs">
-                     TỔNG SỐ: {initialExams.length} ĐỀ THI
+                     TỔNG SỐ: {filteredExamsToManage.length} ĐỀ THI
                    </div>
                  )}
               </div>
