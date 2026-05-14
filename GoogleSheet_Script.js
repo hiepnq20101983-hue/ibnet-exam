@@ -20,6 +20,16 @@ function getSpreadsheet() {
   return ss;
 }
 
+// CHẠY HÀM NÀY MỘT LẦN DUY NHẤT ĐỂ CẤP QUYỀN CHO GOOGLE DRIVE!
+function setup() {
+  try {
+    DriveApp.getFiles().hasNext();
+    Logger.log("Đã cấp quyền Google Drive thành công!");
+  } catch (e) {
+    Logger.log("Chưa được cấp quyền: " + e.message);
+  }
+}
+
 function doPost(e) {
   var lock = LockService.getScriptLock();
   lock.tryLock(10000); // Prevent concurrent write issues
