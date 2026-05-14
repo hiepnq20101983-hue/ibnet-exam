@@ -48,12 +48,16 @@ function ExamConfigItem({
   exam, 
   config, 
   onSave, 
-  isSaving 
+  isSaving,
+  isSelected,
+  onToggleSelect
 }: { 
   exam: Exam; 
   config?: ExamConfig; 
   onSave: (examId: string, status: string, start: string, end: string) => Promise<void>;
   isSaving: boolean;
+  isSelected: boolean;
+  onToggleSelect: () => void;
 }) {
   const [status, setStatus] = useState(config?.status || 'Công khai');
   const [startTime, setStartTime] = useState(config?.startTime || '');
@@ -73,6 +77,14 @@ function ExamConfigItem({
 
   return (
     <tr className="hover:bg-slate-800/10 transition-colors group border-b border-slate-800">
+      <td className="px-6 py-5 text-center">
+        <input
+          type="checkbox"
+          className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-indigo-600 accent-indigo-600 cursor-pointer focus:ring-indigo-500"
+          checked={isSelected}
+          onChange={onToggleSelect}
+        />
+      </td>
       <td className="px-6 py-5">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2 flex-wrap">
@@ -186,6 +198,8 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
   const [behavior, setBehavior] = useState<BehaviorLog[]>([]);
   const [examConfigs, setExamConfigs] = useState<ExamConfig[]>([]);
   const [activeTab, setActiveTab] = useState<'exams' | 'roster' | 'schedule' | 'manage-exams'>('exams');
+  const [selectedExamIds, setSelectedExamIds] = useState<string[]>([]);
+  const [isBatchSavingConfig, setIsBatchSavingConfig] = useState(false);
   const [copiedStudent, setCopiedStudent] = useState<string | null>(null);
   const [isSavingConfig, setIsSavingConfig] = useState<string | null>(null);
   
@@ -437,12 +451,47 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
           return [...prev, { examId, status, startTime, endTime }];
         }
       });
-      
-      alert("Cập nhật cài đặt hiển thị đề thi thành công!");
     } catch (err: any) {
       alert("Lỗi lưu cấu hình: " + err.message);
     } finally {
       setIsSavingConfig(null);
+    }
+  };
+
+  const handleBatchSaveExamConfig = async (status: 'Ẩn' | 'Công khai') => {
+    if (!sheetUrl || selectedExamIds.length === 0) return;
+    
+    setIsBatchSavingConfig(true);
+    try {
+      await fetch(sheetUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_exam_config_batch',
+          examIds: selectedExamIds,
+          status: status
+        })
+      });
+      
+      setExamConfigs(prev => {
+        const next = [...prev];
+        selectedExamIds.forEach(id => {
+          const idx = next.findIndex(c => c.examId === id);
+          if (idx !== -1) {
+            next[idx] = { ...next[idx], status, startTime: "", endTime: "" };
+          } else {
+            next.push({ examId: id, status, startTime: "", endTime: "" });
+          }
+        });
+        return next;
+      });
+      
+      setSelectedExamIds([]);
+    } catch (err: any) {
+      alert("Lỗi lưu cấu hình hàng loạt: " + err.message);
+    } finally {
+      setIsBatchSavingConfig(false);
     }
   };
 
@@ -452,6 +501,10 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
       fetchData();
     }
   }, [isAuthorized, sheetUrl]);
+
+  const filteredExamsToManage = useMemo(() => {
+    return initialExams.filter(ex => ex.title.toLowerCase().includes(searchTerm.toLowerCase()));
+  }, [initialExams, searchTerm]);
 
   // Dynamic options
   const availableClasses = useMemo(() => {
@@ -969,42 +1022,87 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
                    <h2 className="text-lg font-bold flex items-center gap-2"><Settings className="h-5 w-5 text-indigo-400"/> Cài đặt Đề Thi & Chế độ Hiển thị</h2>
                    <p className="text-xs text-slate-500 font-medium mt-1">Cấu hình ẩn/hiện hoặc đặt lịch hẹn tự động mở đề thi cho Học sinh theo dõi.</p>
                  </div>
-                 <div className="flex items-center gap-2.5 bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 px-3.5 py-1.5 rounded-xl font-black text-xs">
-                   TỔNG SỐ: {initialExams.length} ĐỀ THI
-                 </div>
+                 
+                 {selectedExamIds.length > 0 ? (
+                   <div className="flex items-center gap-3 animate-in slide-in-from-right-2 duration-200 flex-wrap">
+                     <span className="text-xs text-indigo-300 font-bold font-mono bg-indigo-500/10 px-3 py-1.5 rounded-xl border border-indigo-500/20">
+                       Đã chọn: {selectedExamIds.length}
+                     </span>
+                     <button
+                       onClick={() => handleBatchSaveExamConfig('Ẩn')}
+                       disabled={isBatchSavingConfig}
+                       className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-white bg-rose-600 hover:bg-rose-500 shadow-lg active:scale-95 transition-all disabled:opacity-50 cursor-pointer shadow-rose-600/20"
+                     >
+                       {isBatchSavingConfig ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <EyeOff className="h-3.5 w-3.5"/>}
+                       Ẩn hàng loạt
+                     </button>
+                     <button
+                       onClick={() => handleBatchSaveExamConfig('Công khai')}
+                       disabled={isBatchSavingConfig}
+                       className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg active:scale-95 transition-all disabled:opacity-50 cursor-pointer shadow-emerald-600/20"
+                     >
+                       {isBatchSavingConfig ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <Eye className="h-3.5 w-3.5"/>}
+                       Hiện hàng loạt
+                     </button>
+                   </div>
+                 ) : (
+                   <div className="flex items-center gap-2.5 bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 px-3.5 py-1.5 rounded-xl font-black text-xs">
+                     TỔNG SỐ: {initialExams.length} ĐỀ THI
+                   </div>
+                 )}
               </div>
 
               <div className="overflow-x-auto custom-scrollbar">
                 <table className="w-full border-collapse text-left">
                   <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-black tracking-widest border-b border-slate-800">
                     <tr>
+                      <th className="px-6 py-4 w-16 text-center">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-indigo-600 accent-indigo-600 cursor-pointer focus:ring-indigo-500"
+                          checked={filteredExamsToManage.length > 0 && selectedExamIds.length === filteredExamsToManage.length}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedExamIds(filteredExamsToManage.map(ex => ex.id));
+                            } else {
+                              setSelectedExamIds([]);
+                            }
+                          }}
+                        />
+                      </th>
                       <th className="px-6 py-4 min-w-[280px]">Thông tin Đề Thi</th>
                       <th className="px-6 py-4 min-w-[320px]">Cấu hình Trạng thái</th>
                       <th className="px-6 py-4 w-36 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/80">
-                    {initialExams.length === 0 ? (
+                    {filteredExamsToManage.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="py-20 text-center text-slate-600 text-sm italic font-medium">
-                          Không phát hiện bất kỳ đề thi nào trong hệ thống!
+                        <td colSpan={4} className="py-20 text-center text-slate-600 text-sm italic font-medium">
+                          Không tìm thấy bất kỳ đề thi nào khớp với tìm kiếm!
                         </td>
                       </tr>
                     ) : (
-                      initialExams
-                        .filter(ex => ex.title.toLowerCase().includes(searchTerm.toLowerCase()))
-                        .map(exam => {
-                          const config = examConfigs.find(c => c.examId === exam.id);
-                          return (
-                            <ExamConfigItem
-                              key={exam.id}
-                              exam={exam}
-                              config={config}
-                              onSave={handleSaveExamConfig}
-                              isSaving={isSavingConfig === exam.id}
-                            />
-                          );
-                        })
+                      filteredExamsToManage.map(exam => {
+                        const config = examConfigs.find(c => c.examId === exam.id);
+                        return (
+                          <ExamConfigItem
+                            key={exam.id}
+                            exam={exam}
+                            config={config}
+                            onSave={handleSaveExamConfig}
+                            isSaving={isSavingConfig === exam.id}
+                            isSelected={selectedExamIds.includes(exam.id)}
+                            onToggleSelect={() => {
+                              setSelectedExamIds(prev => 
+                                prev.includes(exam.id) 
+                                  ? prev.filter(id => id !== exam.id) 
+                                  : [...prev, exam.id]
+                              );
+                            }}
+                          />
+                        );
+                      })
                     )}
                   </tbody>
                 </table>

@@ -192,6 +192,53 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({result: "success"}))
         .setMimeType(ContentService.MimeType.JSON);
     }
+
+    if (data.action === 'update_exam_config_batch') {
+      var configSheet = ss.getSheetByName("ExamConfigs");
+      if (!configSheet) {
+        configSheet = ss.insertSheet("ExamConfigs");
+        configSheet.appendRow(["Mã Đề", "Trạng thái", "Thời gian bắt đầu", "Thời gian kết thúc"]);
+        configSheet.getRange("A1:D1").setFontWeight("bold").setBackground("#f3f4f6");
+      }
+      
+      var dataValues = configSheet.getDataRange().getValues();
+      var examIds = data.examIds || [];
+      var status = String(data.status || "Ẩn").trim();
+      var startTime = "";
+      var endTime = "";
+      
+      var rowsToAdd = [];
+      var existingMap = {};
+      for (var i = 1; i < dataValues.length; i++) {
+        var id = String(dataValues[i][0] || "").trim();
+        if (id) {
+          existingMap[id] = i + 1;
+        }
+      }
+      
+      for (var j = 0; j < examIds.length; j++) {
+        var idToUpdate = String(examIds[j]).trim();
+        if (!idToUpdate) continue;
+        
+        if (existingMap[idToUpdate]) {
+          var row = existingMap[idToUpdate];
+          configSheet.getRange(row, 2).setValue(status);
+          configSheet.getRange(row, 3).setValue(startTime);
+          configSheet.getRange(row, 4).setValue(endTime);
+        } else {
+          rowsToAdd.push([idToUpdate, status, startTime, endTime]);
+        }
+      }
+      
+      if (rowsToAdd.length > 0) {
+        var lastRow = configSheet.getLastRow();
+        var range = configSheet.getRange(lastRow + 1, 1, rowsToAdd.length, 4);
+        range.setValues(rowsToAdd);
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({result: "success"}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({result: "error", error: err.toString()}))
       .setMimeType(ContentService.MimeType.JSON);
