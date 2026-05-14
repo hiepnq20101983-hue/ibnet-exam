@@ -226,6 +226,12 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [selectedCalDay, setSelectedCalDay] = useState<number | null>(new Date().getDate());
 
+  // Real-time Apps Script Diagnostics states
+  const [testUrl, setTestUrl] = useState("");
+  const [isTestingApi, setIsTestingApi] = useState(false);
+  const [testResult, setTestResult] = useState<{success?: boolean, message?: string, details?: string} | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+
   // CSV Import States
   const [isImportingCsv, setIsImportingCsv] = useState(false);
   const [csvParsedStudents, setCsvParsedStudents] = useState<StudentRoster[]>([]);
@@ -414,6 +420,70 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
       setPinError("");
     } else {
       setPinError("Mã bảo mật không chính xác. Vui lòng thử lại!");
+    }
+  };
+
+  const handleTestApi = async () => {
+    if (!testUrl) {
+      alert("Vui lòng dán link Web App để test!");
+      return;
+    }
+    setIsTestingApi(true);
+    setTestResult(null);
+    try {
+      const cleanUrl = testUrl.trim().replace(/^["']|["']$/g, '');
+      // Add random cache breaker and get_data action
+      const separator = cleanUrl.includes('?') ? '&' : '?';
+      const finalUrl = `${cleanUrl}${separator}action=get_data&_cb=${Date.now()}`;
+      
+      const res = await fetch(finalUrl, { cache: 'no-store' });
+      if (res.ok) {
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text);
+          if (data && data.result === 'error') {
+            setTestResult({
+              success: false,
+              message: 'Cảnh báo: Google Script đã phản hồi nhưng báo lỗi nội bộ!',
+              details: `Thông điệp lỗi từ Google: "${data.error || data.message}"\n\nHướng xử lý: Copy ID trang tính (dãy chữ dài trên thanh địa chỉ trang tính) và điền vào SPREADSHEET_ID ở dòng 5 trong script, sau đó Deploy bản mới!`
+            });
+          } else {
+            setTestResult({
+              success: true,
+              message: '🎉 KẾT NỐI THÀNH CÔNG RỰC RỠ!',
+              details: `Hệ thống đã đọc trực tiếp được:\n- ${data.submissions?.length || 0} lượt nộp bài\n- ${data.roster?.length || 0} học sinh đã lưu\n- ${data.behavior?.length || 0} nhật ký ý thức\n- ${data.examConfigs?.length || 0} cấu hình đề thi\n\nLink này hoạt động 100%, bạn có thể yên tâm cấu hình vào Vercel!`
+            });
+          }
+        } catch (parseErr) {
+          if (text.includes("Exam API Is Running Successfully")) {
+            setTestResult({
+              success: false,
+              message: 'Chú ý: Link chạy được nhưng đang trả về trang mặc định!',
+              details: `Lý do: Có thể bạn chưa dán bản code mới nhất chứa hàm doGet() hoặc chưa chuyển sang Version mới nhất khi Deploy.`
+            });
+          } else {
+            setTestResult({
+              success: false,
+              message: 'Không thể phân tích dữ liệu dạng JSON!',
+              details: `Kết quả trả về không phải JSON hợp lệ:\n${text.substring(0, 300)}...`
+            });
+          }
+        }
+      } else {
+        setTestResult({
+          success: false,
+          message: `Lỗi kết nối HTTP ${res.status}`,
+          details: 'Không thể kết nối đến URL này. Hãy chắc chắn bạn đã Deploy đúng dưới dạng Web App!'
+        });
+      }
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: '🚨 LỖI "FAILED TO FETCH" (Bị chặn kết nối)!',
+        details: `Nguyên nhân chính: Google Apps Script bị sập nội bộ ở phía Server (thường do không tìm thấy trang tính, sai ID, hoặc xung đột tài khoản).\n\nHướng xử lý khẩn cấp:\n1. Hãy chắc chắn đã copy ID trang tính dán vào dòng 5 của Google Script.\n2. Đảm bảo khi Deploy đã chọn Truy cập cho "Bất kỳ ai".\n3. Chi tiết kỹ thuật: ${err.message || 'Trình duyệt chặn phản hồi CORS'}`
+      });
+    } finally {
+      setIsTestingApi(false);
     }
   };
 
@@ -899,6 +969,98 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
       </nav>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
+        
+        {/* Công cụ Chẩn Đoán Real-time API */}
+        <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl mb-8 overflow-hidden shadow-xl">
+          <button 
+            onClick={() => setShowDiagnostics(!showDiagnostics)}
+            className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-850/50 transition-all border-b border-slate-800/50"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className={`p-2 rounded-lg ${showDiagnostics ? 'bg-amber-500/10 text-amber-400' : 'bg-slate-800 text-slate-400'}`}>
+                <Search className="h-4 w-4" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-200">Công cụ Thử Nghiệm & Chẩn Đoán Link API (Không cần Re-Deploy)</h3>
+                <p className="text-[10px] text-slate-500 font-medium mt-0.5">Kiểm tra ngay link Google Apps Script vừa tạo xem có chạy được không trước khi dán lên Vercel!</p>
+              </div>
+            </div>
+            <span className="text-xs font-black text-indigo-400 bg-indigo-600/10 px-2.5 py-1 rounded-lg border border-indigo-500/20">
+              {showDiagnostics ? 'Đóng công cụ ▲' : 'Mở công cụ chẩn đoán ▼'}
+            </span>
+          </button>
+
+          {showDiagnostics && (
+            <div className="p-6 bg-slate-950/40 animate-in slide-in-from-top-2 duration-200">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+                <div className="md:col-span-8">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    Dán URL Web App mới của bạn vào đây để Test:
+                  </label>
+                  <div className="flex gap-3">
+                    <input 
+                      type="text"
+                      value={testUrl}
+                      onChange={(e) => setTestUrl(e.target.value)}
+                      placeholder="https://script.google.com/macros/s/XXXXXX/exec"
+                      className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-xs outline-none focus:ring-1 ring-indigo-500"
+                    />
+                    <button 
+                      onClick={handleTestApi}
+                      disabled={isTestingApi}
+                      className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-indigo-600/20 flex items-center gap-1.5 shrink-0"
+                    >
+                      {isTestingApi ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang Test...
+                        </>
+                      ) : (
+                        <>Chạy Thử Lệnh Connect</>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-2 italic">
+                    Lưu ý: Chỉ cần dán link của bạn và nhấn nút. Chúng tôi sẽ giả lập kết nối trực tiếp từ trình duyệt của bạn ngay lập tức.
+                  </p>
+                </div>
+
+                <div className="md:col-span-4">
+                  <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 h-full flex flex-col justify-center">
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-indigo-400 mb-1">HƯỚNG DẪN NHANH:</h4>
+                    <ul className="text-[10px] text-slate-400 space-y-1 leading-relaxed list-disc pl-3">
+                      <li>Nếu link Test báo <b>"FAILED TO FETCH"</b> &rarr; Bạn đang bị lỗi Google File (Tệp không tồn tại).</li>
+                      <li>Để sửa: Hãy dán <b>ID Trang tính</b> của bạn vào biến <b>SPREADSHEET_ID</b> ở <b>Dòng 5</b> của mã Google Script!</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {testResult && (
+                <div className={`mt-6 rounded-xl border p-4 animate-in fade-in duration-300 ${
+                  testResult.success 
+                    ? 'bg-emerald-600/10 border-emerald-500/30' 
+                    : 'bg-red-600/10 border-red-500/30'
+                }`}>
+                  <div className="flex items-start gap-3">
+                    {testResult.success ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <h4 className={`text-xs font-black uppercase ${testResult.success ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {testResult.message}
+                      </h4>
+                      <pre className="mt-2 text-[10px] font-mono bg-black/30 rounded-lg p-3 overflow-x-auto text-slate-300 leading-relaxed border border-slate-800/50 whitespace-pre-wrap">
+                        {testResult.details}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         
         {/* Setup Warning if no URL configured */}
         {!sheetUrl && (

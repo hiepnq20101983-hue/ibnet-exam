@@ -3,13 +3,30 @@
  * Copy all of this code and paste into Extensions -> Apps Script in your Google Sheet.
  */
 
+var SPREADSHEET_ID = ""; // ĐIỀN ID TRANG TÍNH CỦA BẠN VÀO ĐÂY NẾU GẶP LỖI "TỆP KHÔNG TỒN TẠI". BỎ TRỐNG NẾU SỬ DỤNG MẶC ĐỊNH TRONG TRANG TÍNH.
+
+function getSpreadsheet() {
+  if (typeof SPREADSHEET_ID !== 'undefined' && SPREADSHEET_ID && SPREADSHEET_ID.trim() !== "") {
+    try {
+      return SpreadsheetApp.openById(SPREADSHEET_ID.trim());
+    } catch (e) {
+      throw new Error("Không tìm thấy Trang tính với ID đã điền: [" + SPREADSHEET_ID + "]. Vui lòng kiểm tra lại ID!");
+    }
+  }
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    throw new Error("Lỗi bảo mật Google: Script không thể tự nhận dạng trang tính (Thường do bạn tạo Script độc lập hoặc đăng nhập nhiều tài khoản Google). Vui lòng Copy ID của trang tính dán vào biến SPREADSHEET_ID ở Dòng 5 trong đoạn mã này để sửa lỗi!");
+  }
+  return ss;
+}
+
 function doPost(e) {
   var lock = LockService.getScriptLock();
   lock.tryLock(10000); // Prevent concurrent write issues
   
   try {
     var data = JSON.parse(e.postData.contents);
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getSpreadsheet();
     var sheet = ss.getSheetByName("Submissions");
     
     // Auto-create sheet if not exists
@@ -249,7 +266,7 @@ function doPost(e) {
 
 function doGet(e) {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getSpreadsheet();
     var action = e.parameter.action;
   
   if (action === 'get_data') {
