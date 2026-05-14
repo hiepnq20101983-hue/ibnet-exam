@@ -60,7 +60,7 @@ export default function DashboardClient({ initialExams }: { initialExams: Exam[]
 
     const sheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
     if (sheetUrl) {
-      fetch(`${sheetUrl}?action=get_data`)
+      fetch(`${sheetUrl}?action=get_data`, { cache: 'no-store' })
         .then(res => res.json())
         .then(data => {
           if (data && data.examConfigs) {

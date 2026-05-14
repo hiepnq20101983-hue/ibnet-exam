@@ -32,7 +32,7 @@ export default function ExamViewerClient({ examId }: { examId: string }) {
       return;
     }
 
-    fetch(`${sheetUrl}?action=get_data`)
+    fetch(`${sheetUrl}?action=get_data`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         if (data && data.examConfigs) {
