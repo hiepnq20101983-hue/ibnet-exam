@@ -248,8 +248,9 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var action = e.parameter.action;
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var action = e.parameter.action;
   
   if (action === 'get_data') {
     // 1. Get Submissions List
@@ -457,4 +458,8 @@ function doGet(e) {
   }
   
   return ContentService.createTextOutput("Exam API Is Running Successfully.");
+  } catch (globalErr) {
+    return ContentService.createTextOutput(JSON.stringify({result: "error", error: "Lỗi hệ thống Google Scripts: " + globalErr.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
