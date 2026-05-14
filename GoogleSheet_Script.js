@@ -370,44 +370,57 @@ function doGet(e) {
           var file = files.next();
           var name = file.getName();
           if (name.toLowerCase().endsWith(".html")) {
-            // Quick text read for metadata
-            var text = file.getBlob().getDataAsString().substring(0, 20000);
-            
-            var titleMatch = text.match(/<title>(.*?)<\/title>/i);
-            var title = titleMatch ? titleMatch[1].trim() : name.replace("_conv.html", "").replace(/_/g, " ");
-            
-            var durationMatch = text.match(/class=["']exam-meta["'][^>]*>([\s\S]*?)<\/div>/i) || text.match(/class=["']exam-meta["'][^>]*>([\s\S]*?)<\/span>/i);
-            var duration = durationMatch ? durationMatch[1].replace(/<\/?[^>]+(>|$)/g, "").trim() : "Không rõ thời gian";
-            
-            var summaryMatch = text.match(/class=["']score-summary["'][^>]*>([\s\S]*?)<\/div>/i);
-            var summary = summaryMatch ? summaryMatch[1].replace(/<\/?[^>]+(>|$)/g, "").substring(0, 150) + "..." : "";
-            
-            // Categorization from path
-            var pathSegments = currentPath.split('/').filter(function(x) { return x.length > 0; });
-            var examClass = 'Chung';
-            var examTopic = 'Tổng hợp';
-            
-            if (pathSegments.length === 1) {
-              var seg = pathSegments[0];
-              if (seg.toLowerCase().indexOf('lớp') !== -1 || seg.toLowerCase().indexOf('lop') !== -1) {
-                examClass = seg;
-              } else {
-                examTopic = seg;
+            try {
+              // Quick text read for metadata
+              var text = file.getBlob().getDataAsString().substring(0, 20000);
+              
+              var titleMatch = text.match(/<title>(.*?)<\/title>/i);
+              var title = titleMatch ? titleMatch[1].trim() : name.replace("_conv.html", "").replace(/_/g, " ");
+              
+              var durationMatch = text.match(/class=["']exam-meta["'][^>]*>([\s\S]*?)<\/div>/i) || text.match(/class=["']exam-meta["'][^>]*>([\s\S]*?)<\/span>/i);
+              var duration = durationMatch ? durationMatch[1].replace(/<\/?[^>]+(>|$)/g, "").trim() : "Không rõ thời gian";
+              
+              var summaryMatch = text.match(/class=["']score-summary["'][^>]*>([\s\S]*?)<\/div>/i);
+              var summary = summaryMatch ? summaryMatch[1].replace(/<\/?[^>]+(>|$)/g, "").substring(0, 150) + "..." : "";
+              
+              // Categorization from path
+              var pathSegments = currentPath.split('/').filter(function(x) { return x.length > 0; });
+              var examClass = 'Chung';
+              var examTopic = 'Tổng hợp';
+              
+              if (pathSegments.length === 1) {
+                var seg = pathSegments[0];
+                if (seg.toLowerCase().indexOf('lớp') !== -1 || seg.toLowerCase().indexOf('lop') !== -1) {
+                  examClass = seg;
+                } else {
+                  examTopic = seg;
+                }
+              } else if (pathSegments.length >= 2) {
+                examClass = pathSegments[0];
+                examTopic = pathSegments[1];
               }
-            } else if (pathSegments.length >= 2) {
-              examClass = pathSegments[0];
-              examTopic = pathSegments[1];
+              
+              examList.push({
+                id: file.getId(),
+                filename: name,
+                title: title,
+                duration: duration.replace('Thời gian: ', ''),
+                summary: summary,
+                examClass: examClass,
+                examTopic: examTopic
+              });
+            } catch (fileErr) {
+              // Secure fallback: skip unreadable file without crashing the whole directory traversal
+              examList.push({
+                id: file.getId(),
+                filename: name,
+                title: name.replace("_conv.html", ""),
+                duration: "Lỗi đọc",
+                summary: "Không thể giải mã metadata: " + fileErr.toString(),
+                examClass: currentPath.split('/')[0] || "Drive",
+                examTopic: "Lỗi đọc file"
+              });
             }
-            
-            examList.push({
-              id: file.getId(),
-              filename: name,
-              title: title,
-              duration: duration.replace('Thời gian: ', ''),
-              summary: summary,
-              examClass: examClass,
-              examTopic: examTopic
-            });
           }
         }
         

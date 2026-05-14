@@ -200,6 +200,8 @@ function ExamConfigItem({
 }
 
 export default function TeacherDashboardClient({ initialExams }: { initialExams: Exam[] }) {
+  const [exams, setExams] = useState<Exam[]>(initialExams);
+  const [isExamsSyncing, setIsExamsSyncing] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
@@ -430,6 +432,22 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
       setRoster(json.roster || []);
       setBehavior(json.behavior || []);
       setExamConfigs(json.examConfigs || []);
+
+      // Background sync fresh dynamic exams roster from API proxy
+      setIsExamsSyncing(true);
+      try {
+        const examsRes = await fetch('/api/exams', { cache: 'no-store' });
+        if (examsRes.ok) {
+          const freshExams = await examsRes.json();
+          if (Array.isArray(freshExams)) {
+            setExams(freshExams);
+          }
+        }
+      } catch (examErr) {
+        console.error("Background exam sync failed:", examErr);
+      } finally {
+        setIsExamsSyncing(false);
+      }
     } catch (err: any) {
       setError(`Không thể tải dữ liệu: ${err.message || "Lỗi không xác định"}`);
     } finally {
@@ -515,12 +533,12 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
   }, [isAuthorized, sheetUrl]);
 
   const filteredExamsToManage = useMemo(() => {
-    return initialExams.filter(ex => {
+    return exams.filter(ex => {
       const matchesSearch = ex.title.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesSource = sourceFilter === 'all' || ex.source === sourceFilter;
       return matchesSearch && matchesSource;
     });
-  }, [initialExams, searchTerm, sourceFilter]);
+  }, [exams, searchTerm, sourceFilter]);
 
   // Dynamic options
   const availableClasses = useMemo(() => {
@@ -932,7 +950,7 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
               <span className="text-xs font-bold uppercase tracking-wider">Số lượng Đề thi</span>
               <Calendar className="h-4 w-4" />
             </div>
-            <div className="text-3xl font-black text-purple-400">{initialExams.length}</div>
+            <div className="text-3xl font-black text-purple-400">{exams.length}</div>
             <p className="text-[10px] text-slate-500 mt-1">Đang được mở công khai</p>
           </div>
         </div>
@@ -978,7 +996,7 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
                   className="w-full bg-slate-950 border border-slate-800 text-white text-sm rounded-xl px-3 py-3 appearance-none focus:ring-1 ring-indigo-500 outline-none"
                 >
                   <option value="all">-- Xem lịch sử làm bài tổng hợp (Tất cả các đề) --</option>
-                  {initialExams.map(ex => (
+                  {exams.map(ex => (
                     <option key={ex.id} value={ex.id}>{ex.title} ({ex.examClass})</option>
                   ))}
                 </select>
@@ -1674,7 +1692,7 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
                      <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
                         <div>
                            <h2 className="text-base font-bold flex items-center gap-2">Bảng kiểm diện và điểm số</h2>
-                           <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Đề: {initialExams.find(e => e.id === selectedExam)?.title}</p>
+                           <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Đề: {exams.find(e => e.id === selectedExam)?.title}</p>
                         </div>
                         <span className="text-xs bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 font-bold px-2 py-0.5 rounded">Lớp {selectedClass}</span>
                      </div>

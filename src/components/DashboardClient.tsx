@@ -14,7 +14,7 @@ interface ExamConfig {
 }
 
 export default function DashboardClient({ initialExams }: { initialExams: Exam[] }) {
-  const [exams] = useState<Exam[]>(initialExams);
+  const [exams, setExams] = useState<Exam[]>(initialExams);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeClass, setActiveClass] = useState('Tất cả');
   const [activeTopic, setActiveTopic] = useState('Tất cả');
@@ -57,6 +57,16 @@ export default function DashboardClient({ initialExams }: { initialExams: Exam[]
 
     const savedHistory = localStorage.getItem('exam_history');
     if (savedHistory) setHistory(JSON.parse(savedHistory));
+
+    // Background sync fresh dynamic exams roster
+    fetch('/api/exams', { cache: 'no-store' })
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(freshExams => {
+        if (Array.isArray(freshExams)) {
+          setExams(freshExams);
+        }
+      })
+      .catch(err => console.error("Lỗi đồng bộ danh sách đề thi:", err));
 
     const sheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
     if (sheetUrl) {
