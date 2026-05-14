@@ -3,19 +3,10 @@
  * Copy all of this code and paste into Extensions -> Apps Script in your Google Sheet.
  */
 
-var SPREADSHEET_ID = "1tY-CDPltVyrv4g3-RuT-YLt3wCuktjmPyvc-BtX3-pA";
-
 function getSpreadsheet() {
-  if (typeof SPREADSHEET_ID !== 'undefined' && SPREADSHEET_ID && SPREADSHEET_ID.trim() !== "") {
-    try {
-      return SpreadsheetApp.openById(SPREADSHEET_ID.trim());
-    } catch (e) {
-      throw new Error("Không tìm thấy Trang tính với ID đã điền: [" + SPREADSHEET_ID + "]. Vui lòng kiểm tra lại ID!");
-    }
-  }
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) {
-    throw new Error("Lỗi bảo mật Google: Script không thể tự nhận dạng trang tính (Thường do bạn tạo Script độc lập hoặc đăng nhập nhiều tài khoản Google). Vui lòng Copy ID của trang tính dán vào biến SPREADSHEET_ID ở Dòng 5 trong đoạn mã này để sửa lỗi!");
+    throw new Error("Lỗi bảo mật Google: Script không thể tự nhận dạng trang tính. Hãy chắc chắn bạn mở Script bằng cách vào Tiện ích mở rộng -> Apps Script từ bên trong Google Sheet.");
   }
   return ss;
 }
