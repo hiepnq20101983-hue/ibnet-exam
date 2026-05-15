@@ -58,31 +58,26 @@ export default function DashboardClient({ initialExams }: { initialExams: Exam[]
     const savedHistory = localStorage.getItem('exam_history');
     if (savedHistory) setHistory(JSON.parse(savedHistory));
 
-    // Background sync fresh dynamic exams roster
-    fetch('/api/exams', { cache: 'no-store' })
-      .then(res => res.ok ? res.json() : Promise.reject())
-      .then(freshExams => {
-        if (Array.isArray(freshExams)) {
-          setExams(freshExams);
-        }
-      })
-      .catch(err => console.error("Lỗi đồng bộ danh sách đề thi:", err));
-
+    // Fetch fresh data in parallel for speed
+    setIsConfigsLoading(true);
     const rawSheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
     const sheetUrl = rawSheetUrl ? rawSheetUrl.trim().replace(/^["']|["']$/g, '') : '';
-    if (sheetUrl) {
-      fetch(`${sheetUrl}?action=get_data`, { cache: 'no-store' })
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.examConfigs) {
-            setExamConfigs(data.examConfigs);
-          }
-        })
-        .catch(err => console.error("Lỗi tải cấu hình:", err))
-        .finally(() => setIsConfigsLoading(false));
-    } else {
+
+    Promise.all([
+      fetch('/api/exams', { cache: 'no-store' }).then(res => res.ok ? res.json() : []),
+      sheetUrl ? fetch(`${sheetUrl}?action=get_data`, { cache: 'no-store' }).then(res => res.ok ? res.json() : null) : Promise.resolve(null)
+    ]).then(([freshExams, sheetData]) => {
+      if (Array.isArray(freshExams) && freshExams.length > 0) {
+        setExams(freshExams);
+      }
+      if (sheetData && sheetData.examConfigs) {
+        setExamConfigs(sheetData.examConfigs);
+      }
+    }).catch(err => {
+      console.error("Lỗi đồng bộ dữ liệu:", err);
+    }).finally(() => {
       setIsConfigsLoading(false);
-    }
+    });
   }, []);
 
   // Automatically filter content based on the student's registered class

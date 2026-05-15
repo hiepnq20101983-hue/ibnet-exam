@@ -5,7 +5,13 @@ import { ChevronLeft, RotateCcw, Maximize2, User, Sparkles, Trophy, Lock, AlertT
 import React, { useEffect, useRef, useState } from 'react';
 import { usePathname } from "next/navigation";
 
-export default function ExamViewerClient({ examId }: { examId: string }) {
+export default function ExamViewerClient({ 
+  examId, 
+  initialTitle 
+}: { 
+  examId: string;
+  initialTitle?: string;
+}) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [student, setStudent] = useState<{ name: string; className: string } | null>(null);
   const [scoreText, setScoreText] = useState<string | null>(null);
@@ -14,6 +20,7 @@ export default function ExamViewerClient({ examId }: { examId: string }) {
   const pathname = usePathname();
   const [isCheckingLock, setIsCheckingLock] = useState(true);
   const [lockStatus, setLockStatus] = useState<{ isLocked: boolean; reason: string }>({ isLocked: false, reason: '' });
+  const [displayTitle, setDisplayTitle] = useState(initialTitle || examId);
 
   // Dynamically resolve the basePath in browser by comparing browser path vs app path
   useEffect(() => {
@@ -61,7 +68,17 @@ export default function ExamViewerClient({ examId }: { examId: string }) {
         }
       })
       .catch(err => console.error("Không thể tải cấu hình chặn truy cập:", err))
-      .finally(() => setIsCheckingLock(false));
+      .finally(() => {
+        setIsCheckingLock(false);
+        // Also fetch fresh exam list to update title if missing
+        fetch('/api/exams', { cache: 'no-store' })
+          .then(res => res.ok ? res.json() : [])
+          .then(exams => {
+             const ex = exams.find((e: any) => e.id === examId);
+             if (ex && ex.title) setDisplayTitle(ex.title);
+          })
+          .catch(() => {});
+      });
   }, [examId]);
 
   useEffect(() => {
@@ -139,9 +156,8 @@ export default function ExamViewerClient({ examId }: { examId: string }) {
       const sheetUrl = rawSheetUrl ? rawSheetUrl.trim().replace(/^["']|["']$/g, '') : '';
       if (sheetUrl && student) {
         try {
-          await fetch(sheetUrl, {
+          await fetch('/api/sheet', {
             method: 'POST',
-            mode: 'no-cors', // Critical for handling redirection in Apps Script Web App CORS limits
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               action: 'add_submission',
@@ -193,7 +209,7 @@ export default function ExamViewerClient({ examId }: { examId: string }) {
           </Link>
           <div className="truncate">
              <h1 className="text-white font-bold truncate flex items-center gap-2">
-               <Sparkles className="h-4 w-4 text-indigo-400" /> {examId.replace('_conv.html', '').replace(/_/g, ' ')}
+               <Sparkles className="h-4 w-4 text-indigo-400" /> {displayTitle.replace('_conv.html', '').replace(/_/g, ' ')}
              </h1>
           </div>
         </div>

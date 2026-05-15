@@ -33,7 +33,17 @@ function getAllFiles(dirPath: string, arrayOfFiles: string[] = [], rootPath?: st
   return arrayOfFiles;
 }
 
+// Simple in-memory cache to prevent redundant slow fetches
+let examsCache: { data: Exam[], timestamp: number } | null = null;
+const CACHE_TTL = 60 * 1000; // 60 seconds
+
 export async function getExams(): Promise<Exam[]> {
+  // Return cached data if valid
+  const now = Date.now();
+  if (examsCache && (now - examsCache.timestamp < CACHE_TTL)) {
+    return examsCache.data;
+  }
+
   const rawDriveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
   const driveFolderId = rawDriveFolderId ? rawDriveFolderId.trim().replace(/^["']|["']$/g, '') : '';
   
@@ -88,7 +98,7 @@ export async function getExams(): Promise<Exam[]> {
   const rawDisableGit = process.env.DISABLE_GIT_EXAMS || process.env.NEXT_PUBLIC_DISABLE_GIT_EXAMS;
   const disableGitExams = rawDisableGit ? rawDisableGit.trim().replace(/^["']|["']$/g, '').toLowerCase() === 'true' : false;
   
-  const examsDir = path.join(process.cwd(), 'public', 'assets', 'exams');
+  const examsDir = path.join(process.cwd(), 'public');
   
   if (!disableGitExams && fs.existsSync(examsDir)) {
     // Scan all files recursively to get relative paths
@@ -148,5 +158,13 @@ export async function getExams(): Promise<Exam[]> {
   }
   
   // Combine both Drive and local exams
-  return [...driveExams, ...localExams];
+  const combinedExams = [...driveExams, ...localExams];
+  
+  // Update cache
+  examsCache = {
+    data: combinedExams,
+    timestamp: Date.now()
+  };
+
+  return combinedExams;
 }

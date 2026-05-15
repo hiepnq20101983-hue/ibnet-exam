@@ -277,9 +277,8 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
     if (!newStudent.name.trim() || !newStudent.className.trim() || !sheetUrl) return;
     setIsSubmittingStudent(true);
     try {
-      await fetch(sheetUrl, {
+      const response = await fetch('/api/sheet', {
         method: 'POST',
-        mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'add_student',
@@ -290,10 +289,13 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
           tuitionStatus: newStudent.tuitionStatus.trim()
         })
       });
+      
+      if (!response.ok) throw new Error("Failed to add student via proxy");
+
       setIsAddingStudent(false);
       setTimeout(() => {
         fetchData();
-      }, 800);
+      }, 500);
     } catch (err: any) {
       alert("Lỗi: " + err.message);
     } finally {
@@ -315,9 +317,8 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
     if (!editingStudent || !sheetUrl) return;
     setIsUpdatingStudent(true);
     try {
-      await fetch(sheetUrl, {
+      const response = await fetch('/api/sheet', {
         method: 'POST',
-        mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update_student',
@@ -328,10 +329,13 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
           tuitionStatus: editForm.tuitionStatus.trim()
         })
       });
+
+      if (!response.ok) throw new Error("Failed to update student via proxy");
+
       setEditingStudent(null);
       setTimeout(() => {
         fetchData();
-      }, 800);
+      }, 500);
     } catch (err: any) {
       alert("Lỗi: " + err.message);
     } finally {
@@ -374,9 +378,8 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
     
     setIsSubmittingBatch(true);
     try {
-      await fetch(sheetUrl, {
+      const response = await fetch('/api/sheet', {
         method: 'POST',
-        mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update_schedule_batch',
@@ -387,11 +390,13 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
         })
       });
       
+      if (!response.ok) throw new Error("Failed to update batch schedule via proxy");
+
       setIsBatchScheduling(false);
       setSelectedStudentNames([]);
       setTimeout(() => {
         fetchData();
-      }, 800);
+      }, 500);
     } catch (err: any) {
       alert("Lỗi: " + err.message);
     } finally {
@@ -507,35 +512,36 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
     setIsLoading(true);
     setError(null);
     try {
-      // Add explicit cache buster timestamp to bypass aggressive browser caching of previous CORS errors
+      // Fetch everything in parallel to drastically improve load time
       const finalUrl = `${sheetUrl}${sheetUrl.includes('?') ? '&' : '?'}action=get_data&_cb=${Date.now()}`;
-      const res = await fetch(finalUrl, { cache: 'no-store' });
-      if (!res.ok) throw new Error("Network error fetching sheet data");
-      const json = await res.json();
+      
+      setIsExamsSyncing(true);
+      
+      const [sheetRes, examsRes] = await Promise.all([
+        fetch(finalUrl, { cache: 'no-store' }),
+        fetch('/api/exams', { cache: 'no-store' })
+      ]);
+
+      if (!sheetRes.ok) throw new Error("Network error fetching sheet data");
+      
+      const [json, freshExams] = await Promise.all([
+        sheetRes.json(),
+        examsRes.ok ? examsRes.json() : Promise.resolve(null)
+      ]);
+
       setSubmissions(json.submissions || []);
       setRoster(json.roster || []);
       setBehavior(json.behavior || []);
       setExamConfigs(json.examConfigs || []);
 
-      // Background sync fresh dynamic exams roster from API proxy
-      setIsExamsSyncing(true);
-      try {
-        const examsRes = await fetch('/api/exams', { cache: 'no-store' });
-        if (examsRes.ok) {
-          const freshExams = await examsRes.json();
-          if (Array.isArray(freshExams)) {
-            setExams(freshExams);
-          }
-        }
-      } catch (examErr) {
-        console.error("Background exam sync failed:", examErr);
-      } finally {
-        setIsExamsSyncing(false);
+      if (Array.isArray(freshExams)) {
+        setExams(freshExams);
       }
     } catch (err: any) {
-      setError(`Không thể tải dữ liệu: ${err.message || "Lỗi kết nối (Failed to fetch)"}. Link API được cấu hình: [${sheetUrl || 'Chưa cấu hình'}]`);
+      setError(`Không thể tải dữ liệu: ${err.message || "Lỗi kết nối (Failed to fetch)"}. Link API: [${sheetUrl || 'Chưa cấu hình'}]`);
     } finally {
       setIsLoading(false);
+      setIsExamsSyncing(false);
     }
   };
 
@@ -544,9 +550,8 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
     
     setIsSavingConfig(examId);
     try {
-      await fetch(sheetUrl, {
+      const response = await fetch('/api/sheet', {
         method: 'POST',
-        mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update_exam_config',
@@ -556,6 +561,8 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
           endTime
         })
       });
+      
+      if (!response.ok) throw new Error("Failed to save config via proxy");
       
       setExamConfigs(prev => {
         const existing = prev.find(c => c.examId === examId);
@@ -577,9 +584,8 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
     
     setIsBatchSavingConfig(true);
     try {
-      await fetch(sheetUrl, {
+      const response = await fetch('/api/sheet', {
         method: 'POST',
-        mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update_exam_config_batch',
@@ -589,6 +595,8 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
           endTime: endTime
         })
       });
+      
+      if (!response.ok) throw new Error("Failed batch save via proxy");
       
       setExamConfigs(prev => {
         const next = [...prev];
@@ -890,18 +898,20 @@ export default function TeacherDashboardClient({ initialExams }: { initialExams:
     if (!sheetUrl || csvParsedStudents.length === 0) return;
     setIsSubmittingCsv(true);
     try {
-      await fetch(sheetUrl, {
+      const response = await fetch('/api/sheet', {
         method: 'POST',
-        mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'add_students_batch',
           students: csvParsedStudents
         })
       });
+
+      if (!response.ok) throw new Error("Failed to import CSV via proxy");
+
       setIsImportingCsv(false);
       setCsvParsedStudents([]);
-      alert(`Đã gửi lệnh thêm ${csvParsedStudents.length} học sinh lên Sheet! Chờ nạp lại...`);
+      alert(`Đã gửi lệnh thêm ${csvParsedStudents.length} học sinh lên Sheet thành công!`);
       setTimeout(() => {
         fetchData();
       }, 800);
